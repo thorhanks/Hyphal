@@ -630,7 +630,33 @@ CREATE TABLE ops (
 
 ### 9.2 Package architecture
 
-&#91;embedded content: package architecture · 4 Go packages, 3 kinds of on-disk data\]
+Both front ends share one core; only the database is authoritative.
+
+```text
+┌──────────────────────────────┐      ┌──────────────────────────────┐
+│ tui                          │      │ cli                          │
+│ Bubble Tea + Lip Gloss       │      │ Cobra commands, JSON output  │
+└──────────────┬───────────────┘      └───────────────┬──────────────┘
+               │ commands                             │ same operations
+┌──────────────▼──────────────────────────────────────▼──────────────┐
+│ core                                                               │
+│ In-memory tree, domain operations, undo via history, search        │
+└─────────────────────────────────┬──────────────────────────────────┘
+                                  │ load, commit, revert
+┌─────────────────────────────────▼──────────────────────────────────┐
+│ store                                                              │
+│ SQLite access, history writes, snapshots, import and export        │
+└──────────┬──────────────────────┬───────────────────────┬──────────┘
+           │ transactions         │ backup API            │ on demand
+┌──────────▼─────────┐  ┌─────────▼──────────┐  ┌─────────▼──────────┐
+│ outline.db         │  │ Snapshots          │  │ Exports            │
+│ Nodes, history,    │  │ Hourly and         │  │ Markdown, JSON,    │
+│ search; the only   │  │ pre-migration      │  │ OPML, on demand    │
+│ source of truth    │  │ restorable copies  │  │ or scheduled       │
+└────────────────────┘  └────────────────────┘  └────────────────────┘
+```
+
+Four Go packages (`tui`, `cli`, `core`, `store`) and three kinds of on-disk data.
 
 The TUI and CLI never touch the database directly; only `store` does. That keeps storage replaceable without rewriting either front end.
 
@@ -731,7 +757,16 @@ app paths
 
 Phase 1 delivers a Workflowy clone you can use daily on your own imported outline. Phase 2 completes Workflowy parity, Phase 3 adds the Obsidian-inspired features, and automation comes last.
 
-&#91;embedded content: delivery plan · 6 phases, each with an exit gate\]
+Six phases, each with an exit gate:
+
+| Phase | Scope | Exit gate |
+|---|---|---|
+| **0 · Storage and editing spike** | Schema, sync-ready history, JSON round trip; wrap layout, keymap matrix, Omarchy palette | Export and import are identical; a crash loses at most 1 s of typing |
+| **1 · Minimum lovable Workflowy clone** | Editing rules, block selection, pages, formatting; Omarchy theme, palettes, CLI, Workflowy import | A week of daily use on your own outline; side-by-side calm review passes |
+| **2 · Full Workflowy parity** | Tags, node links, search operators, stars; jump palette, history, mouse, page edit mode | Every *Must* row of the parity checklist works |
+| **3 · Obsidian-inspired features** | Backlinks, unlinked mentions, peek, properties; saved queries, templates, optional Today node | Links survive moves and renames and export cleanly |
+| **4 · Agent integration** | MCP server, agent usage guide, richer queries; optional Vim keymap for the outline | Every agent change is reviewable and revertible |
+| **5 · Multi-device sync** | Per-device logs, HLC merge, compaction; any-folder sync (iCloud Drive, Syncthing) | Two machines edit offline and converge with nothing lost |
 
 Each phase starts only after the previous gate passes. Sync-ready data design starts in Phase 0 even though sync itself ships in Phase 5 (§7.6).
 
