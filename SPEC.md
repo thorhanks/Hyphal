@@ -80,17 +80,18 @@ Our claimed difference: Workflowy-grade editing, in a terminal, with local data 
 
 ### 4.1 Global tree
 
-- Exactly one logical root per workspace. Every bullet is a node with editable text, ordered children, and an in-memory identity.
+- Exactly one root per database ("workspace" and "outline" both mean one database file). The root is a real row with `parent_id` NULL, its ID stored in `meta`, and is shown as **Home**. It can't be renamed, deleted, moved, completed or starred, and has no page.
+- Every other bullet is a node with editable text, ordered children, and a permanent random ID (§7.2).
 - No distinction between bullet, task or project. Any bullet can also carry a Markdown page (§5.7). Completion is an attribute any node can have.
 - **Zoom** makes any node the temporary root. The zoomed node is shown as a heading, with only its descendants below it. The heading can be focused and edited like a bullet.
-- **Breadcrumbs** show the path to the zoom target. Long paths are truncated in the middle: `Root / … / Development / Tooltips`.
+- **Breadcrumbs** show the path to the zoom target. They always start at Home and use `›` as the separator. Long paths are truncated in the middle: `Home › … › Development › Tooltips`.
 - Collapse/expand is independent of zoom and persists across sessions (§7.2).
 - No artificial depth limit.
 
 ### 4.2 Corrected mockup (zoomed into Projects)
 
 ```text
-Root / Projects                                         ~/knowledge  ●
+Home › Projects                                            outline  ●
 
 Projects
 
@@ -112,6 +113,8 @@ Enter new · Tab indent · Esc select · Ctrl+P commands · F1 help
 | Collapsed, has children | `▸` | `>` |
 | Expanded, has children | `▾` | `v` |
 | Leaf | `•` | `-` |
+| Task, open / done | `☐` / `☑` after the bullet glyph | `[ ]` / `[x]` |
+| Heading style | Bold text, extra space above | Bold, or `#` marker without bold |
 | Completed | Dimmed + strikethrough text; glyph unchanged | Dimmed text + `x` marker |
 | Selected (block selection) | Reverse-video row | Same |
 
@@ -132,7 +135,7 @@ Enter new · Tab indent · Esc select · Ctrl+P commands · F1 help
 
 ### 4.5 Chrome
 
-- **Header:** breadcrumb left; database name and save indicator right.
+- **Header:** breadcrumb left; database name (the file name without `.db`) and save indicator right.
 - **Save indicator:** nothing when saved; `●` while a coalesced edit is not yet committed (at most about 1 second); a red label if a write fails.
 - **Footer:** contextual key hints, dismissible via config. `?` opens a full help overlay.
 - **Toasts:** one line, auto-dismissing, for undoable actions: `Moved "Design notes" and 214 descendants to Trash · Ctrl+Z`.
@@ -200,7 +203,7 @@ The full keymap is in §6.4. The conventions it follows:
 **Reference sketches** (the window border is Hyprland's, not the app's):
 
 ```text
-  Projects › ControllerCraft
+  Home › Projects › ControllerCraft
 
   ControllerCraft
 
@@ -264,6 +267,8 @@ Delete at the end of a bullet mirrors these rules forward.
 - **Move up/down** among siblings moves whole subtrees. Moving past the first or last sibling moves to the adjacent parent's sibling list, as Workflowy does.
 - **Delete a subtree** (Backspace, Delete or `d` in block selection) never asks for confirmation. It shows an undo toast with the descendant count.
 - **Complete / reopen** toggles a node's completion (storage rule: §7.2). Completed nodes stay in place; a toggle hides them.
+- **Tasks:** toggle task makes a bullet a task, shown with a checkbox (§4.3). Typing `[ ] ` at the start of a bullet does the same and removes the marker. Completing a task checks its box.
+- **Heading style:** toggle heading makes a bullet a section-like heading (§4.6). It changes only the look, never the structure.
 - **Move to…** opens a fuzzy parent picker over all node text, built on the command palette (Phase 1). From Phase 2 it uses the jump palette, with starred locations first. This is how subtrees cross long distances.
 
 ### 5.5 Paste and clipboard
@@ -274,9 +279,12 @@ Delete at the end of a bullet mirrors these rules forward.
 
 ### 5.6 Undo and redo
 
-- Undo is driven by history (§8.2). Each change set is one undo step.
+- Undo is driven by history (§8.2). Each change set is one undo step. Undo applies the inverse of the newest change set not yet undone as a new change set whose `undo_of` points at it; redo undoes that undo. The undo position is derived from history, so it needs no extra state.
+- Any new change set from the TUI clears the redo steps.
+- If a later change from another source (CLI, agent, sync) touched the same fields, undo follows the revert rule: those fields are skipped and reported (§8.2).
+- Undoing a change outside the current zoom zooms to show it, with a toast.
 - Typing coalesces into one step per node, closed by a 2-second pause, leaving the node, or any structural action.
-- Undo restores cursor and selection position.
+- Undo restores cursor and selection position, recorded with each change set.
 - **Undo survives restarts.** Ctrl+Z after reopening the app continues where you left off.
 - Ctrl+Z undoes change sets you started from the TUI, including `$EDITOR` round trips and page saves made from it. Changes from the CLI or an agent are never undone by Ctrl+Z, so you never undo something you didn't do; they are reverted with `app revert` (Phase 1) or from the History view (Phase 2).
 
@@ -344,10 +352,13 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 - **In-place filter (Phase 1).** Ctrl+F (or `/` in block selection) filters the tree as you type: matching nodes stay visible with their ancestors, matches highlighted, everything else hidden. This includes collapsed branches and page text. Esc clears it and keeps the cursor on the selected match.
 - **Jump palette (Phase 2).** Ctrl+K opens a fuzzy finder over all node text, showing each result's breadcrumb, with starred locations listed first. Enter zooms to the result's parent with the result selected. From Phase 2 the same palette backs "Move to…" (§5.4).
 - **Search operators (Phase 2),** Workflowy-style, in both the filter and the palette:
-  - `is:complete`, `is:open`, `is:task`, `has:page`, `is:starred`
+  - `is:complete`, `is:open` (not completed, any bullet), `is:task` (open or done), `has:page`, `is:starred`; `is:task is:open` finds open tasks
   - `#tag` (includes nested tags), `changed:7d`, `created:2026-10`
   - `"exact phrase"`, `-word` to exclude, terms combined with AND by default, `OR` between terms
-- Case-insensitive substring matching by default. Saved queries arrive in Phase 3 (§10.1).
+- Case-insensitive substring matching by default, ignoring diacritics. FTS5 with the `trigram` tokenizer serves queries of three or more characters; shorter queries scan the in-memory tree. Phase 0 verifies Unicode case folding, diacritics and the 50 ms target at 100,000 nodes with the chosen driver.
+- Trashed nodes never match.
+- A match inside a page keeps its bullet visible with the page marker highlighted, and shows the matching line dimmed beneath it.
+- Saved queries arrive in Phase 3 (§10.1).
 
 ### 6.3 External editor and quick capture
 
@@ -518,7 +529,7 @@ Separate outlines are separate database files, selected with `--db` or a config 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
 -- schema_version, format_id (neutral, never the app name), device_id,
--- inbox_id, a one-paragraph description of the schema
+-- root_id, inbox_id, a one-paragraph description of the schema
 
 CREATE TABLE nodes (
   id           TEXT PRIMARY KEY,     -- random, stable forever
@@ -538,7 +549,8 @@ CREATE TABLE nodes (
 CREATE TABLE pages (                 -- at most one page per bullet (§5.7)
   node_id    TEXT PRIMARY KEY REFERENCES nodes(id),
   markdown   TEXT NOT NULL,          -- full Markdown document
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1   -- bumped on every write (§7.3)
 );
 
 CREATE TABLE node_tags (             -- derived from bullet text and page on every write
@@ -552,30 +564,43 @@ CREATE TABLE stars (
   starred_at TEXT NOT NULL
 );
 
-CREATE TABLE view_state (
+CREATE TABLE view_state (           -- per device; not in history or sync
   node_id   TEXT PRIMARY KEY REFERENCES nodes(id),
   collapsed INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE ui_state (              -- per device; not in history or sync
+  key   TEXT PRIMARY KEY,            -- show_completed, zoom, cursor:<zoom-id>, palette_recent
+  value TEXT NOT NULL                -- JSON
+);
+
+CREATE INDEX nodes_by_parent  ON nodes(parent_id, position);
+CREATE INDEX nodes_in_trash   ON nodes(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE INDEX node_tags_by_tag ON node_tags(tag);
+
 -- change_sets and ops: see §8.2
--- search_fts: FTS5 index over nodes.text and pages.markdown, maintained by triggers
+-- search_fts: FTS5 index over live (non-trashed) nodes.text and pages.markdown,
+--             maintained by triggers (§6.2)
 ```
 
 - **IDs** are random and permanent. They are what the CLI, links and the editor round trip use.
 - **Ordering** uses fractional index strings, so moving or reordering a node rewrites one row.
 - **Completion:** `is_task` marks an open task (`[ ]`); `completed_at` marks completion for any node. Reopening clears `completed_at` and keeps `is_task`, so a plain bullet never turns into a task by accident.
-- **View state** (collapse) lives in its own table and is excluded from history: folding never creates undo steps.
-- **Search** uses an FTS5 index kept in sync by triggers.
+- **View state** (collapse) and **UI state** (show/hide completed, the current zoom, the cursor per zoom, palette recents) are per device, excluded from history and sync: folding never creates undo steps. Both are included in JSON export so a restore brings back the same view. The filter is never persisted.
+- **Timestamps** are RFC 3339 in UTC with milliseconds (`2026-10-17T09:30:00.123Z`), displayed and interpreted in local time (`created:2026-10`, the Today node). `updated_at` changes when the node's own text, page, task, heading or completion changes, not on moves, stars or changes to descendants; `changed:7d` uses it.
+- **Integrity:** `PRAGMA foreign_keys=ON` on every connection. History ops reference nodes by ID without a foreign key, so purging a node never cascades into history (§8.3).
+- **File permissions:** the data directory is created `0700`, and the database, snapshots and exports `0600`.
+- **Search** uses an FTS5 index kept in sync by triggers (§6.2).
 - The schema stays plain enough that anyone opening the file in a SQLite browser understands it in a minute.
-
 - **Formatting** is stored as the markup the user typed, not as separate style rows. The text stays readable in any SQLite browser and exports without conversion; rendering parses it on display.
-- **Tags** are kept in `node_tags`, rebuilt from the bullet text and page in the same transaction as every edit, so tag filters and the tag list are indexed queries.
+- **Tags** are kept in `node_tags`, rebuilt from the bullet text and page in the same transaction as every edit, so tag filters and the tag list are indexed queries. A tag written in a page attaches to the page's bullet.
 - **Stars** are user data and part of history; collapse state is not.
 
 ### 7.3 Transactions and concurrency
 
 - Every user action is one transaction that updates `nodes` and writes its history together (§8.2).
 - Typing is committed as its coalesced operation at most about every second, so a crash loses at most the last second of typing.
+- Pending typing is flushed and sealed on quit, on SIGHUP (terminal closed) and on SIGTERM, before the app exits.
 - WAL mode with `synchronous=FULL`. The extra cost is negligible at this write rate.
 - The TUI keeps an in-memory tree for rendering; all writes go through `core` to `store`.
 - The CLI opens its own connection with a busy timeout. The TUI polls `PRAGMA data_version` about every 500 ms and reloads changed nodes.
@@ -591,17 +616,49 @@ CREATE TABLE view_state (
 
 | Format | Export | Import |
 | --- | --- | --- |
-| JSON | Full fidelity: IDs, order, task and completion state, timestamps; history optional | Full restore into an empty database |
-| Markdown | Nested lists with `[ ]` and `[x]`; one file, or one file per top-level node | New nodes under a chosen parent |
-| OPML | Standard outliner exchange format | New nodes under a chosen parent (for migrating from Workflowy and other outliners) |
+| JSON | Lossless: every node including the Trash, pages, stars, collapse and UI state; IDs, positions and timestamps. History with `--history` | Into an empty database only. `--replace` snapshots the database, then replaces its contents. `--under <id>` imports as new nodes with new IDs instead |
+| Markdown | The shared dialect below; one file, or one file per top-level node; pages as separate files | New nodes under a chosen parent |
+| OPML | Workflowy-compatible (mapping below) | New nodes under a chosen parent (for migrating from Workflowy and other outliners) |
 | Plain text | Indented lines with all markup stripped; pages omitted | — |
 
+- JSON export never contains the `device_id`, the config file or snapshots. An import always keeps the receiving installation's own `device_id`.
 - Every export records the app and the export time without breaking its format: a top-level `exported_by` field in JSON, `<head>` elements in OPML (after the `<?xml` declaration), and an HTML comment on the first line of Markdown, which importers skip.
 - Exports are written atomically (temp file, then rename).
-- **Scheduled export** is an optional setting: Markdown or JSON, daily or on quit, into a folder you choose (for example a Git repo), keeping the last N exports.
-- CI checks that database → JSON → database produces an identical outline.
+- **Scheduled export** is an optional setting: Markdown or JSON, daily or on quit, into a folder you choose (for example a Git repo), keeping the last N exports. There is no daemon: a daily export runs on quit, or at launch if it is overdue. `app export --scheduled` runs it from a systemd timer, launchd or cron.
+- CI checks that database → JSON → database is identical: every exported field is equal, including IDs, positions, timestamps, pages, stars and view state, and history when exported with `--history`.
 
-**Pages in exports:** Markdown export writes each page as its own `.md` file in a `pages/` folder, named from the bullet text plus its ID, and the outline links to it. The result reads much like an Obsidian vault. JSON export includes pages in full; OPML puts them in `_note`.
+**Markdown dialect.** Export, import, multi-line paste (§5.5) and the editor round trip (§6.3) share one dialect, close to GitHub-flavored Markdown:
+
+```markdown
+- Plain bullet
+- [ ] Open task
+- [x] Completed task
+- ## Heading-style bullet
+  - Child, indented two spaces
+- Bullet text with its ID ^k3j9x2
+```
+
+- Inline markup is written as stored (§5.8). Export converts color tags to `<span style="color: …">`; the editor round trip keeps them as typed.
+- The ` ^id` suffix is written by the editor round trip and by `app export --ids`. Only the editor round trip maps IDs back to existing nodes; Markdown import always creates new nodes and ignores the suffix.
+- A completed bullet that is not a task exports as `[x]` and re-imports as a completed task. This small loss is documented; JSON and the editor round trip (through `^id`) keep it exact.
+- Import accepts any consistent indentation (spaces or tabs) and `-`, `*`, `+` or numbered list markers. Lines that aren't list items become bullets.
+
+**Pages in exports:** Markdown export writes each page as its own `.md` file in a `pages/` folder, and the outline links to it. File names are a slug of the bullet text (lowercase letters, digits and hyphens, at most 50 characters) plus the node ID, so they never collide. The result reads much like an Obsidian vault. JSON export includes pages in full; OPML puts them in `_note`.
+
+**Workflowy OPML mapping.** Verified against a real Workflowy export in Phase 1 (§12.4).
+
+| Workflowy | Imported as | Exported back |
+| --- | --- | --- |
+| Outline text with inline HTML | Bullet text with Markdown-style markup (§5.8) | Workflowy HTML |
+| `<b>`, `<i>`, `<s>`, `<code>`, `<a href>` | `**…**`, `*…*`, `~~…~~`, `` `…` ``, `[label](url)` | Same tags |
+| `<span class="colored c-red">` and other text colors | `<red>…</red>`, nearest of the eight colors | `colored` span |
+| Background-color spans | `==…==` | Yellow background span |
+| `_note` | Page | `_note`, as Markdown text |
+| `_complete="true"` | Completed bullet (not a task) | `_complete="true"` |
+| `#tags` | Tags, unchanged | Unchanged |
+| `@mentions`, dates | Plain text | Plain text |
+| Mirrors | Independent copies; the mirror link is lost | — |
+| Boards | Plain children; the board layout is lost | — |
 
 ### 7.6 Sync readiness
 
@@ -622,6 +679,7 @@ Multi-device sync ships in Phase 5, and an iPhone app is a separate follow-up pr
 - Fractional positions include a device-specific tie-breaker, so concurrent inserts at the same spot never collide.
 - Deletes stay soft; undo and revert create new operations and never rewrite history. Only sealed operations are emitted to the log (§8.2).
 - A node's parent and position form one **location** field, so a move is never split across two fields by a merge.
+- Deleted state is one field too: a delete and a concurrent restore resolve by latest HLC like any other field.
 
 **Merge rules (Phase 5):**
 
@@ -636,6 +694,11 @@ Multi-device sync ships in Phase 5, and an iPhone app is a separate follow-up pr
 - Logs are JSON Lines with a versioned, documented format, so a future iPhone app can read and write them with its own SQLite store.
 - Each device writes an acknowledgment watermark; logs are compacted once every known device has merged past a point.
 - Merged remote changes appear in history with source `sync:<device>`, and a Sync view lists recent ones by device.
+- **Device identity.** The `device_id` is also written to a small `device` file in the data directory. If the database's ID doesn't match it (the database was copied from another machine), the app generates a new `device_id` before writing anything.
+- **Retired devices** would block compaction forever; `app sync forget-device <id>` removes one from the watermark calculation.
+- **Snapshot restore with sync on** applies the difference between the current state and the snapshot as one change set (source `restore`), so other devices receive it and it can be reverted. Swapping the file is reserved for corruption recovery, after which the device takes a new `device_id` and merges every log again.
+- Compaction, `app history purge` and Trash purges are local and never touch the logs; Forget node is the only erasure that syncs (§8.4).
+- Convergence tests run with skewed simulated clocks until the HLC drift policy is decided (§12.3).
 
 ## 8. Safety, history and recovery
 
@@ -644,7 +707,8 @@ Three layers protect the data, each against a different failure: history against
 ### 8.1 Durability
 
 - WAL mode, `synchronous=FULL`, one transaction per action (§7.3).
-- `PRAGMA quick_check` runs in the background at launch. A failure opens the database read-only and offers to restore the latest good snapshot.
+- `PRAGMA quick_check` runs in the background after the first frame, so it never delays launch; its duration on large databases is measured in Phase 0. A failure switches the session to read-only at once, writes any uncommitted typing to a recovery Markdown file in the data directory, and offers to restore the latest good snapshot.
+- **Failed writes** (disk full, permissions): the edit stays in memory, the save indicator turns red, a banner explains, and the write is retried every few seconds. Typing continues. Quitting with unsaved edits writes them to a recovery Markdown file and says where.
 - **Never sync the live database** with Syncthing, Dropbox or similar; it can corrupt. The app warns if `outline.db` sits inside a known sync folder. Sync snapshots or exports instead.
 
 ### 8.2 History
@@ -655,19 +719,26 @@ CREATE TABLE change_sets (
   device_id   TEXT NOT NULL,     -- installation that made the change (§7.6)
   hlc         TEXT NOT NULL,     -- hybrid logical clock timestamp, sortable
   at          TEXT NOT NULL,     -- wall-clock ISO timestamp, for display
-  source      TEXT NOT NULL,     -- 'tui', 'cli', 'editor', 'import', 'agent:<name>', 'sync:<device>'
-  description TEXT               -- e.g. 'Moved "Design notes"'
+  source      TEXT NOT NULL,     -- 'tui', 'cli', 'editor', 'import', 'restore', 'agent:<name>', 'sync:<device>'
+  description TEXT,              -- e.g. 'Moved "Design notes"'
+  undo_of     TEXT,              -- change set this one undoes (§5.6)
+  cursor      TEXT               -- JSON: zoom, focused node, offset, selection before the change
 );
+CREATE INDEX change_sets_by_hlc ON change_sets(hlc);
 
 CREATE TABLE ops (
   id            INTEGER PRIMARY KEY,
   change_set_id TEXT NOT NULL REFERENCES change_sets(id),
   node_id       TEXT NOT NULL,
-  kind          TEXT NOT NULL,   -- insert, delete, edit_text, edit_page, move, set_task, set_complete, set_star, forget
-                                 -- move carries one location field: {parent_id, position} (§7.6)
+  kind          TEXT NOT NULL,   -- insert, delete, restore, edit_text, edit_page, move,
+                                 -- set_task, set_heading, set_complete, set_star, forget
   before        TEXT,            -- JSON: prior values of the changed fields
   after         TEXT             -- JSON: complete new values (self-contained, §7.6)
 );
+CREATE INDEX ops_by_node ON ops(node_id);
+CREATE INDEX ops_by_change_set ON ops(change_set_id);
+-- move carries one location field: {parent_id, position} (§7.6)
+-- edit_page with before = null creates a page; with after = null deletes it
 ```
 
 - **Current state is authoritative;** history is a record beside it, written in the same transaction. Nothing is rebuilt by replay.
@@ -684,6 +755,8 @@ CREATE TABLE ops (
 - Restore brings back exactly one deletion: the nodes whose `deleted_by` matches. A child deleted separately earlier stays in the Trash.
 - A restored subtree returns to its original position among its siblings when that position still exists, otherwise to the end of its parent. If the parent is gone too, it goes under the nearest surviving ancestor, else the root, and the toast says where. Sync uses the same rule (§7.6).
 - Items older than 30 days are purged for real (configurable). "Empty Trash" purges immediately.
+- Purging deletes the node rows with their pages, stars, tags and view state. History ops that mention them stay until history retention removes them; reverting one reports the node as gone. Purging is local: each device purges its own Trash by age, and purges are not synced.
+- After a delete the cursor moves to the next sibling, else the previous one, else the parent. The toast names the bullet and counts its descendants.
 
 ### 8.4 Retention and erasure
 
@@ -695,14 +768,15 @@ CREATE TABLE ops (
 ### 8.5 Snapshots
 
 - Taken with SQLite's online backup API: hourly while changes are happening, and before every migration or restore.
-- Retention: the last 48 hourly snapshots and 30 daily ones.
+- Retention: the last 48 hourly snapshots and 30 daily ones, within a size cap (default 1 GB) that drops the oldest daily snapshots first. `app snapshot list` shows each snapshot's size.
 - `app snapshot list` lists them; `app snapshot restore <name>` restores one after snapshotting the current state first, so a restore is itself reversible.
 - Restore never replaces the file under a live connection: it refuses while a TUI holds the lock (§8.6). When the TUI offers a restore itself (after a failed integrity check), it closes its connection first and reopens afterwards.
 
 ### 8.6 Locking
 
-- One TUI per database, enforced with a lock held by the TUI's connection. A second TUI opens read-only with a banner.
-- CLI commands run alongside the TUI safely; SQLite serializes the writes.
+- One TUI per database, enforced with an exclusive `flock` on a lock file next to the database (`outline.db.lock`). It is not an SQLite lock, so CLI writers are never blocked by it, and the kernel releases it if the TUI dies.
+- A second TUI opens read-only with a banner. It still follows changes through `PRAGMA data_version`; typing in it changes nothing and shows a hint.
+- The CLI and `app capture` don't take the lock. They are ordinary writers with a 5-second busy timeout; past it they exit with a `busy` error code (§10.2). SQLite serializes the writes.
 
 ## 9. Implementation
 
@@ -836,8 +910,8 @@ app apply --file ops.json          # many operations as one change set
 app history list [--source agent:claude] --json
 app history purge --before <date>
 app revert <change-set-id>
-app export --format markdown|json|opml|text --out <dir>
-app import --format json|opml|markdown <file>
+app export --format markdown|json|opml|text --out <dir> [--ids] [--history]
+app import --format json|opml|markdown <file> [--under <id>] [--replace]
 app snapshot list|restore <name>
 app paths
 ```

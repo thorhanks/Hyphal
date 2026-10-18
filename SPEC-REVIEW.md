@@ -419,3 +419,6 @@ Answers to the open calls raised by this review. Applied to `SPEC.md` in later c
 | K2 | Esc chain | 2.4 | Overlay or page → outline; text editing → block selection → clear filter → nothing, with a hint. Esc never zooms out. |
 | K3 | Shift+Enter | 2.7 | Opens the page where distinguishable (kitty protocol); acts as Enter elsewhere. |
 | K4 | Star target | 2.1 | Toggle star acts on the focused or selected bullet; star the zoom target from the zoom heading, which is focusable. |
+| P1 | Root node | 3.8 | A fixed row with `parent_id` NULL, ID in `meta`, shown as "Home" at the start of every breadcrumb. Can't be renamed, deleted, moved, completed or starred; no page. |
+| P2 | Markdown dialect | 3.2, 3.14, 5.4 | One GFM-style dialect for export, import, paste and the editor round trip: `- [ ]`, `- [x]`, `- ## heading`, optional ` ^id`. A completed non-task re-imports as a task (documented). |
+| P3 | JSON import | 3.14 | Refuses a non-empty database. `--replace` snapshots then replaces; `--under <id>` imports as new nodes. |
