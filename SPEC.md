@@ -70,10 +70,10 @@ Our claimed difference: Workflowy-grade editing, in a terminal, with local data 
 | Search operators (`is:complete`, `has:page`, `changed:7d`) | Must | 2 | §6.2 |
 | Starred locations | Must | 2 | §6.6 |
 | Templates | Later | 3 | §10.1 |
-| Dates and a Today node | Later, optional | 3 | §10.1 |
+| Dates and a Today node | Never | — | §12.1 |
 | Mirrors (one bullet in two places) | Never | — | §12.1 |
-| `@person` mentions | Never | — | — |
-| Board (kanban) view | Never in V1 | — | — |
+| `@person` mentions | Never | — | §12.1 |
+| Board (kanban) view | Never in V1 | — | §12.1 |
 | Sharing and collaboration | Never | — | §12.1 |
 
 ## 4. Information model and UI
@@ -132,7 +132,7 @@ Enter new · Tab indent · Esc select · Ctrl+P commands · F1 help
 
 - **Colors, layer 1 (always on):** all UI colors use the terminal's 16 ANSI colors plus its default foreground and background. Omarchy themes recolor the terminal, so the app follows instantly, on any OS, in any terminal.
 - **Colors, layer 2 (Omarchy enhancement):** when an Omarchy installation is detected, the app reads the current theme's palette and uses its exact accent, selection and muted colors in truecolor. It also reads the theme's light/dark marker and adjusts dim and highlight levels.
-- **Live updates:** the app watches the current-theme location (a symlink and directory that the theme switcher replaces) and reloads the palette within a second. Optionally, installing a `theme-set` hook gives instant notification instead of watching.
+- **Live updates:** the app watches the current-theme location (a symlink and directory that the theme switcher replaces) and reloads the palette within a second.
 - **Fonts:** a terminal app always draws in the terminal's font, so the app matches Omarchy's font choice automatically. Omarchy's font switcher changes the terminal font, and the app re-renders on the resize/redraw event that follows.
 - Omarchy's theme file layout has changed between releases, so the Omarchy reader is a small, isolated module with fallbacks: palette file, then terminal theme files, then plain ANSI. Verify paths against the current Omarchy release in Phase 1.
 - Off Omarchy: layer 1 only, plus optional truecolor themes in config. This is a real need, not decoration: it gives macOS and other Linux users the same exact colors that Omarchy users get automatically. Strikethrough, dim and italic each have fallbacks.
@@ -200,7 +200,7 @@ Omarchy is *omakase*: one beautiful, opinionated default, keyboard first, themed
 
 - Hyprland already draws the window border, gaps and focus color, so the main outline draws no border of its own.
 - The app never paints its own background. It uses the terminal's default background, so the theme's background and any terminal opacity show through.
-- Rounded borders (`╭─╮`) appear only on floating overlays: palettes, help, peek and backlinks. The title sits in the top border and the border uses the theme accent, as in btop and lazygit.
+- Rounded borders (`╭─╮`) appear only on floating overlays: palettes, help and backlinks. The title sits in the top border and the border uses the theme accent, as in btop and lazygit.
 
 **Shared keyboard conventions**
 
@@ -209,14 +209,13 @@ The full keymap is in §6.4. The conventions it follows:
 - `?` in block selection, or F1 anywhere, shows every command with its key, as lazygit, Impala and BlueTUI do.
 - Esc backs out one level and never zooms out: overlay → where you were; page edit → page view → outline; text editing → block selection → clear filter → nothing (a hint). Zooming out is always explicit.
 - Block selection accepts Vim motions (`h` `j` `k` `l`, `gg`, `G`), matching Omarchy's Neovim-first setup.
-- There are no side panes. Backlinks and peek are floating overlays like the palettes; Esc closes them.
+- There are no side panes. Backlinks is a floating overlay like the palettes; Esc closes it.
 - Ctrl+Q quits from anywhere. Pending typing is flushed first, so there is never anything to save.
 
 **Native app integration**
 
 - On Linux, ships a `.desktop` entry and its own window class, so it launches from the app launcher like Omarchy's other terminal apps and can be targeted by Hyprland window rules. On macOS it is launched from a terminal; there is no app bundle in V1.
 - **Capture window:** `app capture --window` starts a new terminal window running `app capture` with its own class, which a window rule makes small and floating. The terminal command is a config template; the default uses `xdg-terminal-exec` with the class option of Omarchy's default terminal. Inside, type one line and press Enter: it lands in the Inbox, and the window closes. Plain `app capture` does the same in the current terminal. The docs suggest a Super binding, checked against Omarchy's defaults.
-- **Theme hook:** the optional `theme-set` hook touches a file in the app's runtime directory. Every running instance watches that file, so all of them reload together; without the hook, they watch the theme location (§4.4).
 - Desktop notifications only for things that need attention, such as a failed snapshot: through the standard notification daemon on Linux, and through `terminal-notifier` on macOS when installed (otherwise none).
 
 **Restraint**
@@ -265,7 +264,7 @@ Phase 1 needs these screens besides the outline and the page view. Later-phase s
 
 - **Text editing (default).** Printable keys type. Commands use modifiers.
 - **Block selection.** Esc selects the current bullet as a whole. Up/Down move the selection; Shift+Up/Down extend it across siblings only. Single keys act on the selection (§6.4). Enter or `a` returns to text editing with the cursor at the end of the bullet, `i` at the start. Other printable keys do nothing except show a hint, so text typed after Esc never runs commands by surprise.
-- Block selection accepts Vim-style motions by default (§4.7) because they are single keys. Full Vim-style modal editing is an optional keymap in Phase 4 (§11), never a requirement.
+- Block selection accepts Vim-style motions by default (§4.7) because they are single keys. Full Vim-style modal editing is not offered (§12.1).
 
 ### 5.2 Enter
 
@@ -347,8 +346,7 @@ Identity follows the merge rule above: the current bullet keeps its ID, and the 
   - Cursor mid-text: the bullet is split first (§5.2), and the subtree goes between the two halves.
   - Empty bullet: the subtree replaces it.
   - In block selection: inserted as siblings after the selection.
-- Copy (block selection) writes the selection as indented Markdown to the system clipboard. Cut copies, then deletes to the Trash.
-- **Internal copy keeps everything.** The app also remembers the last copied nodes. If the pasted text is exactly the Markdown it last copied, the paste recreates those nodes in full, with pages, completion, task and heading state, and new IDs.
+- Copy (block selection) writes the selected bullets and their descendants to the system clipboard as indented Markdown in the shared dialect: text with inline markup, task, completion and heading markers. Pages and IDs are not copied. Cut copies, then deletes to the Trash, so cut and paste moves text only: the original bullets go to the Trash with their pages, and the pasted bullets are new. To copy a subtree with its pages, use Duplicate (§5.4); to move one intact, use Move to….
 - **Clipboard transport:** OSC 52 first. Fallbacks: `wl-copy` (Wayland), `xclip` or `xsel` (X11), `pbcopy` (macOS). If none works, a toast says so.
 
 ### 5.6 Undo and redo
@@ -411,7 +409,7 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
   - Color tags nest with other styles but not with each other.
   - Only the markers in the table are recognized while typing, so `_` and `__` stay literal (safe for `snake_case`). Importers convert `_italic_` and `__bold__`.
 - **Colors in 16-color mode (layer 1):** red, yellow, green, cyan and blue use the matching ANSI color. Orange uses bright red, purple uses magenta, and gray uses bright black, falling back to the default color with dim when the theme marks bright black as too low in contrast. With an Omarchy palette or truecolor theme, each color uses the theme's exact value.
-- Markdown export keeps the markers; colors export as `<span style="color: …">` so Obsidian renders them; plain-text export strips all markup.
+- Markdown export keeps the markers; colors export as `<span style="color: …">` so Obsidian renders them.
 
 ### 5.9 Tags (Phase 2)
 
@@ -462,7 +460,7 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 
 This section is the only place key bindings are defined. Other sections name commands and may mention their keys, but this table wins. In code the keymap is data, one table per context, and a test fails if a key is bound twice in one context or a command has no binding that works without the kitty keyboard protocol.
 
-**Contexts:** global, text editing, block selection, filter input, page view, page edit (Phase 2), overlays (palettes, pickers, help, backlinks, peek) and the Trash view. The Esc chain moves between them (§4.7).
+**Contexts:** global, text editing, block selection, filter input, page view, page edit (Phase 2), overlays (palettes, pickers, help, backlinks) and the Trash view. The Esc chain moves between them (§4.7).
 
 **Global** (every context, unless that context's table rebinds the key)
 
@@ -581,7 +579,7 @@ This section is the only place key bindings are defined. Other sections name com
 
 - Phase 2: scroll, click to place the cursor, click a glyph to toggle collapse.
 - Mouse capture disables the terminal's native text selection. The app documents Shift+drag (which most terminals use to bypass capture) and offers a config toggle to turn capture off.
-- Drag-to-move nodes is exploratory; keyboard moves remain complete without it.
+- No drag-to-move; nodes move with the keyboard.
 
 ### 6.6 Palettes, stars and small commands
 
@@ -684,7 +682,7 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 - **Ordering** uses fractional index strings, so moving or reordering a node rewrites one row.
 - **Completion:** `is_task` marks an open task (`[ ]`); `completed_at` marks completion for any node. Reopening clears `completed_at` and keeps `is_task`, so a plain bullet never turns into a task by accident.
 - **View state** (collapse) and **UI state** (show/hide completed, the current zoom, the cursor per zoom, palette recents) are per device, excluded from history and sync: folding never creates undo steps. Both are included in JSON export so a restore brings back the same view. The filter is never persisted.
-- **Timestamps** are RFC 3339 in UTC with milliseconds (`2026-10-17T09:30:00.123Z`), displayed and interpreted in local time (`created:2026-10`, the Today node). `updated_at` changes when the node's own text, page, task, heading or completion changes, not on moves, stars or changes to descendants; `changed:7d` uses it.
+- **Timestamps** are RFC 3339 in UTC with milliseconds (`2026-10-17T09:30:00.123Z`), displayed and interpreted in local time (`created:2026-10`). `updated_at` changes when the node's own text, page, task, heading or completion changes, not on moves, stars or changes to descendants; `changed:7d` uses it.
 - **Integrity:** `PRAGMA foreign_keys=ON` on every connection. History ops reference nodes by ID without a foreign key, so purging a node never cascades into history (§8.3).
 - **File permissions:** the data directory is created `0700`, and the database, snapshots and exports `0600`.
 - **Search** uses an FTS5 index kept in sync by triggers (§6.2).
@@ -716,7 +714,6 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 | JSON | Lossless: every node including the Trash, pages, stars, collapse and UI state; IDs, positions and timestamps. History with `--history` | Into an empty database only. `--replace` snapshots the database, then replaces its contents. `--under <node>` imports as new nodes with new IDs instead |
 | Markdown | The shared dialect below; one file, or one file per top-level node; pages as separate files | New nodes under a chosen parent |
 | OPML | Workflowy-compatible (mapping below) | New nodes under a chosen parent (for migrating from Workflowy and other outliners) |
-| Plain text | Indented lines with all markup stripped; pages omitted | — |
 
 - JSON export never contains the `device_id`, the config file or snapshots. An import always keeps the receiving installation's own `device_id`.
 - Every export records the app and the export time without breaking its format: a top-level `exported_by` field in JSON, `<head>` elements in OPML (after the `<?xml` declaration), and an HTML comment on the first line of Markdown, which importers skip.
@@ -735,7 +732,7 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 - Bullet text with its ID ^k3j9x2
 ```
 
-- Inline markup is written as stored (§5.8). Export converts color tags to `<span style="color: …">`; the editor round trip keeps them as typed.
+- Inline markup is written as stored (§5.8). Export converts color tags to `<span style="color: …">`; the editor round trip and copy (§5.5) keep them as typed.
 - The ` ^id` suffix is written by the editor round trip and by `app export --ids`. Only the editor round trip maps IDs back to existing nodes; Markdown import always creates new nodes and ignores the suffix.
 - A completed bullet that is not a task exports as `[x]` and re-imports as a completed task. This small loss is documented; JSON and the editor round trip (through `^id`) keep it exact.
 - Import accepts any consistent indentation (spaces or tabs) and `-`, `*`, `+` or numbered list markers. Lines that aren't list items become bullets.
@@ -979,12 +976,9 @@ Obsidian's best ideas apply here to nodes rather than files.
 
 - **Node links (Phase 2):** type `[[` to search and link to any bullet. Links are stored by node ID, so they survive moves and renames, and they display the target's current text. Alt+Enter on a link (or a click) zooms to its target. Markdown export writes Obsidian-style links.
 - **Backlinks (Phase 3):** an on-demand floating overlay listing every bullet that links to the current node, each with its breadcrumb.
-- **Unlinked mentions (Phase 3):** bullets containing the current node's text that don't link to it yet, with a one-key "link it" action.
-- **Peek (Phase 3):** a popup previewing a linked node's subtree without zooming away. The terminal version of Obsidian's hover preview.
 - **Properties (Phase 3):** optional `key:: value` lines at the top of a node's page (`status:: waiting`, `due:: 2026-11-01`), shown as quiet chips and indexed for search (`status:waiting`).
 - **Saved queries (Phase 3):** a bullet whose page starts with `query:: #bug is:open` shows live search results as its virtual children. Results are read-only references with one exception: Toggle complete works on a result and completes the real node, so a query like `#thisweek is:open` works as a checklist. Enter zooms to the real node.
 - **Templates (Phase 3):** any subtree tagged `#template` can be instantiated under the current node with one command, from the command palette.
-- **Today node (Phase 3, optional):** a command that zooms to today's dated bullet under a Journal node, creating it if needed. Off by default; there is no mandatory journal.
 - Graph view and plugins remain non-goals.
 
 ### 10.2 CLI and agent interface
@@ -1014,7 +1008,7 @@ app apply --schema                 # prints the ops.json JSON Schema
 app history list [--source agent:claude] --json
 app history purge --before <date>
 app revert <change-set-id>
-app export --format markdown|json|opml|text [--out <dir>] [--ids] [--history] [--scheduled]
+app export --format markdown|json|opml [--out <dir>] [--ids] [--history] [--scheduled]
 app import --format json|opml|markdown <file> [--under <node>] [--replace]
 app snapshot list|restore <name>
 app check                # integrity check (quick_check plus tree invariants)
@@ -1043,8 +1037,8 @@ Six phases, each with an exit gate:
 | **0 · Storage and editing spike** | Schema, sync-ready history, JSON round trip; wrap layout, keymap matrix, Omarchy palette | Export and import are identical; a crash loses at most 1 s of typing |
 | **1 · Minimum lovable Workflowy clone** | Editing rules, block selection, pages, formatting; Omarchy theme, palettes, CLI, Workflowy import | A week of daily use on your own outline; side-by-side calm review passes |
 | **2 · Full Workflowy parity** | Tags, node links, search operators, stars; jump palette, history, mouse, page edit mode | Every *Must* row of the parity checklist works |
-| **3 · Obsidian-inspired features** | Backlinks, unlinked mentions, peek, properties; saved queries, templates, optional Today node | Links survive moves and renames and export cleanly |
-| **4 · Agent integration** | MCP server, agent usage guide, richer queries; optional Vim keymap for the outline | Every agent change is reviewable and revertible |
+| **3 · Obsidian-inspired features** | Backlinks, properties, saved queries, templates | Links survive moves and renames and export cleanly |
+| **4 · Agent integration** | MCP server, agent usage guide, richer queries | Every agent change is reviewable and revertible |
 | **5 · Multi-device sync** | Per-device logs, HLC merge, compaction; any-folder sync (iCloud Drive, Syncthing) | Two machines edit offline and converge with nothing lost |
 
 Each phase starts only after the previous gate passes. Sync-ready data design starts in Phase 0 even though sync itself ships in Phase 5 (§7.6).
@@ -1061,7 +1055,8 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 - No live sync through Git, Syncthing or cloud folders.
 - No `@person` mentions and no board (kanban) view in V1.
 - No mirrors (one bullet shown live in two places). Every node has exactly one parent; links, tags and saved queries cover the need.
-- No mandatory daily journal or page model.
+- No daily journal or Today node, and no page-based model: everything lives in the one tree, and a page (§5.7) is an optional attachment to a bullet.
+- No Vim-style modal editing; block selection accepts Vim motions, and that is all.
 - No accounts, subscription, cloud backend or database server.
 - No rich-text or WYSIWYG editing; formatting is Markdown-style markup, rendered with concealment.
 - No real-time multi-writer collaboration.
@@ -1098,7 +1093,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 | 23 | App name | Only in user-facing places; never in schema, ops, sync log or JSON fields | §1 |
 | 24 | Root and Inbox | A fixed Home root; a top-level Inbox found by ID | §4.1, §6.3 |
 | 25 | Keymap | One authoritative table per context; Alt+key equals Esc then key; Esc never zooms out; typing never leaves block selection | §6.4 |
-| 26 | Overlays | Backlinks, peek and palettes are floating overlays; no side panes | §4.7 |
+| 26 | Overlays | Backlinks and palettes are floating overlays; no side panes | §4.7 |
 | 27 | Undo scope | Ctrl+Z covers TUI-started changes, including `$EDITOR` round trips; CLI and agent changes are reverted | §5.6 |
 | 28 | Identity | Split keeps the ID on the first half; merges keep the earlier bullet and retarget stars and links | §5.2–5.3a |
 | 29 | Concurrency | Per-node versions; TUI typing is never dropped; `--if-version` for agents | §7.3 |
@@ -1125,11 +1120,9 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
   - *Node links (§10.1):* the stored form of `[[…]]` and how it stays readable in a SQLite browser; Obsidian export (links target files, not nodes); links to trashed or purged nodes; the format of Copy link to node.
   - *Screens:* History view, Stars view, tag list, jump palette result rows; mouse details.
 - **Phase 3**
-  - *Unlinked mentions:* tokenization and a minimum length.
   - *Properties:* their namespace versus `is:`, `has:` and `changed:`; reserved keys.
   - *Saved queries:* how Enter, Tab, Backspace and move behave on virtual children; whether a result that stops matching after Toggle complete disappears at once or on the next refresh; whether they are exported; how they look different from real bullets.
   - *Templates:* stripping `#template` from instances; variables such as the date.
-  - *Today node:* date format, locale and time zone.
 - **Phase 5**
   - *Sync view* layout and keys.
 
