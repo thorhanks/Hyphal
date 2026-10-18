@@ -15,7 +15,7 @@ We are building a local-first, terminal-native infinite outliner in Go, inspired
 ## 2. Product principles
 
 1. **One tree, no mandatory pages.** Any node can have children and can be zoomed into.
-2. **Thought-first editing.** Capturing and rearranging bullets needs no mode switch. Commands that need single keys use a lightweight block-selection state, not Vim modes.
+2. **Thought-first editing.** Capturing and rearranging bullets needs no mode switch. Commands that need single keys use a lightweight block-selection state, not Vim modes. Block selection and page view/edit are modes in the strict sense; they are kept few, shallow, and always one Esc away from typing.
 3. **Your data is never locked in.** One SQLite file with a plain, documented schema, readable by standard tools. Export to Markdown, JSON or OPML at any time; a JSON export restores everything.
 4. **Nothing is lost silently.** Every change is recorded in history, deletes go to the Trash, and snapshots protect against a damaged file.
 5. **Every change is attributable and reversible.** History records whether a change came from the TUI, the CLI, the editor round trip or an agent, and any change set can be reverted.
@@ -26,13 +26,13 @@ We are building a local-first, terminal-native infinite outliner in Go, inspired
 
 ## 3. Users, scenarios and comparison set
 
-**Primary users** are Workflowy-style outliners who live in the terminal and value plaintext, Git history and local ownership. Later, users who want scripts or coding agents to read and update their outline.
+**Primary users** are Workflowy-style outliners who live in the terminal and value plaintext, Git history and local ownership. The data lives in SQLite; scheduled Markdown export (§7.5) is the bridge to plaintext and Git. Later, users who want scripts or coding agents to read and update their outline.
 
 **Core scenarios:**
 
 1. **Session.** Launch from a shell and type immediately. Enter adds bullets, Tab nests them. Collapse a project, zoom into a task, filter for a word, quit.
 2. **Quick capture.** From any shell or a Hyprland keybind: `app add "Call the dentist"` appends to an Inbox node without opening the TUI.
-3. **Edit in `$EDITOR`.** Press a key to open the current subtree as Markdown in Neovim. Save and quit; the changes apply as one undoable step.
+3. **Edit in `$EDITOR`.** Press a key to open the current subtree as Markdown in `$EDITOR` (Neovim on Omarchy). Save and quit; the changes apply as one undoable step.
 4. **Recover.** A week later, restore a deleted branch from the Trash, or revert one bad change made by a script without touching anything else.
 5. **Leave.** `app export --format markdown` produces a readable outline that works anywhere, at any time.
 
@@ -135,7 +135,7 @@ Enter new · Tab indent · Esc select · Ctrl+K jump · ? help
 - **Header:** breadcrumb left; database name and save indicator right.
 - **Save indicator:** nothing when saved; `●` while a coalesced edit is not yet committed (at most about 1 second); a red label if a write fails.
 - **Footer:** contextual key hints, dismissible via config. `?` opens a full help overlay.
-- **Toasts:** one line, auto-dismissing, for undoable actions: `Moved "Design notes" and 214 children to Trash · Ctrl+Z`.
+- **Toasts:** one line, auto-dismissing, for undoable actions: `Moved "Design notes" and 214 descendants to Trash · Ctrl+Z`.
 - **Banners:** persistent, for failed writes, a database opened read-only, or a restore that just ran.
 - **Views on demand:** Trash and History open as temporary full-screen views, not panels. No sidebar, no daily journal.
 - **First run:** create the database with a short sample outline that teaches the core keys.
@@ -228,7 +228,7 @@ Omarchy is *omakase*: one beautiful, opinionated default, keyboard first, themed
 
 - **Text editing (default).** Printable keys type. Commands use modifiers.
 - **Block selection.** Esc selects the current bullet as a whole. Up/Down move the selection; Shift+Up/Down extend it across siblings. Single keys act on the selection. Any printable key that isn't a command, or Enter, returns to text editing.
-- Optional Vim-style navigation is a later setting, never a requirement.
+- Block selection accepts Vim-style motions by default (§4.7) because they are single keys. Full Vim-style modal editing is an optional keymap in Phase 4 (§11), never a requirement.
 
 ### 5.2 Enter
 
@@ -312,7 +312,7 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 | Text color | `<red>text</red>` | Alt+C opens a color picker |
 
 - **Colors:** `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple`, `gray`. Each maps to the theme palette (ANSI first, Omarchy truecolor when available), so colored text follows theme changes.
-- `<red>` and `==highlight==` were chosen because they are readable when concealment is off and render in Obsidian after export. Unknown tags are left as plain text.
+- `<red>` and `==highlight==` were chosen because they are short and readable when concealment is off. `<red>` is not HTML, so Markdown export converts it (below). `==highlight==` renders in Obsidian but not in plain CommonMark tools. Unknown tags are left as plain text.
 - Shortcuts apply to the text selection (Shift+Left/Right in text editing) or, in block selection, to the whole bullet.
 - A **color the whole bullet** command applies a color to all selected bullets at once.
 - Markdown export keeps the markers; colors export as `<span style="color: …">` so Obsidian renders them; plain-text export strips all markup.
@@ -352,7 +352,7 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 
 ### 6.4 Keymap and terminal support
 
-Some key combinations are only distinguishable when the terminal supports the kitty keyboard protocol. The app enables it through Crossterm when available. Every binding has a fallback that works in legacy terminals and inside tmux.
+Some key combinations are only distinguishable when the terminal supports the kitty keyboard protocol. The app enables it through Bubble Tea when available. Every binding has a fallback that works in legacy terminals and inside tmux.
 
 | Action | Primary | Legacy / tmux fallback |
 | --- | --- | --- |
@@ -368,10 +368,10 @@ Some key combinations are only distinguishable when the terminal supports the ki
 | Undo / redo | Ctrl+Z / Ctrl+Shift+Z | Ctrl+Z / Ctrl+Y |
 
 - Keymap is configurable in TOML.
-- A test matrix covers Ghostty, Kitty, Alacritty, foot and WezTerm, each bare and inside tmux, recording which bindings arrive intact.
+- A test matrix covers Ghostty, Kitty, Alacritty, foot and WezTerm on Linux, and Ghostty, Kitty, Alacritty, WezTerm, iTerm2 and Terminal.app on macOS, each bare and inside tmux, recording which bindings arrive intact.
 - Bindings that a desktop compositor commonly intercepts (Super combinations under Hyprland) are never used.
 
-**macOS keyboard:** by default, macOS terminals send special characters (å, ∫) for Option+key instead of Alt. Every Alt binding therefore has an Esc-based fallback (§6.4, §6.6), and on first run on macOS the app shows a one-line hint explaining how to set Option to act as Meta (Alt) in the user's terminal. Apple's Terminal.app is treated as ANSI-only; Ghostty, kitty, WezTerm and iTerm2 are fully supported.
+**macOS keyboard:** by default, macOS terminals send special characters (å, ∫) for Option+key instead of Alt. Every Alt binding therefore has an Esc-based fallback (see the tables above), and on first run on macOS the app shows a one-line hint explaining how to set Option to act as Meta (Alt) in the user's terminal. Apple's Terminal.app is treated as ANSI-only; Ghostty, kitty, WezTerm, Alacritty and iTerm2 are fully supported.
 
 ### 6.5 Mouse
 
@@ -480,9 +480,9 @@ CREATE TABLE view_state (
 - **Search** uses an FTS5 index kept in sync by triggers.
 - The schema stays plain enough that anyone opening the file in a SQLite browser understands it in a minute.
 
-* **Formatting** is stored as the markup the user typed, not as separate style rows. The text stays readable in any SQLite browser and exports without conversion; rendering parses it on display.
-* **Tags** are kept in `node_tags`, rebuilt from the bullet text and page in the same transaction as every edit, so tag filters and the tag list are indexed queries.
-* **Stars** are user data and part of history; collapse state is not.
+- **Formatting** is stored as the markup the user typed, not as separate style rows. The text stays readable in any SQLite browser and exports without conversion; rendering parses it on display.
+- **Tags** are kept in `node_tags`, rebuilt from the bullet text and page in the same transaction as every edit, so tag filters and the tag list are indexed queries.
+- **Stars** are user data and part of history; collapse state is not.
 
 ### 7.3 Transactions and concurrency
 
@@ -505,8 +505,9 @@ CREATE TABLE view_state (
 | JSON | Full fidelity: IDs, order, task and completion state, timestamps; history optional | Full restore into an empty database |
 | Markdown | Nested lists with `[ ]` and `[x]`; one file, or one file per top-level node | New nodes under a chosen parent |
 | OPML | Standard outliner exchange format | New nodes under a chosen parent (for migrating from Workflowy and other outliners) |
+| Plain text | Indented lines with all markup stripped; pages omitted | — |
 
-- Every exported file starts with a one-line header naming the app and the export time.
+- Every export records the app and the export time without breaking its format: a top-level `exported_by` field in JSON, `<head>` elements in OPML (after the `<?xml` declaration), and an HTML comment on the first line of Markdown, which importers skip.
 - Exports are written atomically (temp file, then rename).
 - **Scheduled export** is an optional setting: Markdown or JSON, daily or on quit, into a folder you choose (for example a Git repo), keeping the last N exports.
 - CI checks that database → JSON → database produces an identical outline.
@@ -581,7 +582,7 @@ CREATE TABLE ops (
 - **Current state is authoritative;** history is a record beside it, written in the same transaction. Nothing is rebuilt by replay.
 - **Before and after values** make every operation reversible by applying its inverse.
 - **Change sets** group the operations of one action: a subtree move, a CLI command, an editor round trip. They are the unit of undo, revert and "what did this agent do?".
-- **Coalescing:** all edits to one node's text form a single operation, closed by a 2-second pause, leaving the node, or a structural action.
+- **Coalescing:** consecutive edits to one node's text form a single operation, closed by a 2-second pause, leaving the node, or a structural action.
 - **Revert** of an older change set applies its inverses to fields not changed since. Any skipped fields are reported, never overwritten.
 - **History view** (Phase 2): browse a node's past versions and restore one, or list change sets by time and source.
 
@@ -699,7 +700,7 @@ Targets are checked in CI with generated databases.
 The app will be built entirely by AI coding agents, working from a phased implementation plan derived from this spec. The spec and repository follow rules that make that reliable:
 
 - **Acceptance criteria per feature,** written as observable behavior ("Backspace on an empty bullet with children does nothing and shows a hint"), each mapped to at least one automated test.
-- **No manual verification steps.** Every behavior is checkable by `go test`: UI through `teatest` golden screens, data through the CLI's `--json` output, safety through crash and round-trip tests. Visual taste reviews (§4.6) are the one human checkpoint.
+- **No manual verification steps.** Every behavior is checkable by `go test`: UI through `teatest` golden screens, data through the CLI's `--json` output, safety through crash and round-trip tests. The human checkpoints are listed explicitly and are not acceptance criteria for agents: the visual "calm" reviews (§4.6), the hands-on keymap matrix in real terminals (§6.4), the comparison-set evaluation (§3), and the Phase 1 week of daily use (§11).
 - **The CLI is the agents' test harness.** Agents create outlines, run commands and inspect results through the same CLI users get (§10.2), which is why it ships in Phase 1.
 - **One package per task where possible.** The plan hands agents work along package boundaries (`core`, `store`, `tui`, `cli`) with stable interfaces between them.
 - **Golden files are reviewed, not regenerated blindly.** A changed golden screen must be explained in the change description.
@@ -755,7 +756,7 @@ app paths
 
 ## 11. Staged delivery plan
 
-Phase 1 delivers a Workflowy clone you can use daily on your own imported outline. Phase 2 completes Workflowy parity, Phase 3 adds the Obsidian-inspired features, and automation comes last.
+Phase 1 delivers the core of the Workflowy clone (every Phase 1 *Must* row), usable daily on your own imported outline. Phase 2 completes Workflowy parity, Phase 3 adds the Obsidian-inspired features, and agent integration and sync come last.
 
 Six phases, each with an exit gate:
 
