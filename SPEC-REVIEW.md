@@ -385,3 +385,33 @@ Config keys are referenced throughout but never listed: column width, density, k
 - **Toast wording** (:138): "and 214 children" should be "descendants".
 - **Audience framing**: §3 targets users who value "plaintext, Git history", but storage is SQLite. Acknowledge that scheduled export is the bridge.
 - **Scenario 3** says "in Neovim"; the mechanism is `$EDITOR`.
+
+---
+
+## Decisions (2026-10-17)
+
+Answers to the open calls raised by this review. Applied to `SPEC.md` in later commits.
+
+| # | Topic | Review items | Decision |
+|---|---|---|---|
+| D1 | Undo scope | 1.3 | Ctrl+Z undoes anything started from the TUI, including `$EDITOR` round trips and page saves. CLI and agent changes are reverted with `app revert` (Phase 1) or the History view (Phase 2). |
+| D2 | First run | 1.5 | Create the sample outline that teaches the core keys. Drop the ASCII wordmark until there is a name. |
+| D3 | Panes vs overlays | 1.9, 2.6 | Floating overlays only (backlinks, peek). Drop the Ctrl+W pane prefix. |
+| D4 | Move to… in Phase 1 | 1.6 | Phase 1 ships a simple fuzzy parent picker built on the command palette. The full jump palette stays Phase 2. Copy link to node moves to Phase 2. |
+| D5 | Inbox | 1.15 | A top-level `Inbox` node created on first use; its ID is stored in `meta`, so it can be renamed or moved. |
+| D6 | Multi-select | 1.14 | Siblings only. Removed from open questions. |
+| D7 | Leaving block selection | 2.3 | Non-command printable keys do nothing except show a hint. Enter and `a` return to text editing with the cursor at the end, `i` at the start. |
+| D8 | Legacy / tmux fallbacks | 2.2 | Fallbacks are block-selection commands. Alt+key is treated as Esc then key. Document tmux `escape-time 10` and `extended-keys on`. |
+| D9a | Alt+Down | 2.1 | Opens the page. Move subtree drops Alt+Up/Down; `J`/`K` in block selection is the fallback. |
+| D9b | Zoom in block selection | 2.1 | `z` zooms in, `Z` zooms out. Enter returns to text editing. |
+| D9c | Delete in block selection | 2.1 | Backspace, Delete and `d` all delete the selection, with an undo toast. |
+| D9d | Following tags and links | 2.1 | Enter always edits in text editing. Alt+Enter (or click, Phase 2) follows the tag or link under the cursor. In page view, Enter follows the focused link, else enters edit mode. |
+| D9e | Alt+Enter exception | 2.1, D8 | D8 applies to block-selection command keys. Alt+Enter received as one sequence follows the link; a slow Esc then Enter still returns to editing. |
+| D10 | TUI vs CLI concurrency | 3.6 | Per-node version number. TUI typing is never dropped: it commits after the CLI change, which stays in history and can be reverted; a toast reports it. Agents can pass `--if-version`. |
+| D11 | Split / merge identity | 3.1 | Split: the first half keeps the ID and everything attached. Merge: the page moves to the survivor if it has none, else no-op with a hint; star and inbound links are retargeted to the survivor. |
+| D12 | Trash restore | 3.7, 1.13 | Record the deleting change set per node; restore brings back only that deletion, at its original position when possible. Missing parent (Trash and sync): nearest surviving ancestor, else root. Drop the "Recovered" node. |
+| D13 | History policy | 1.10, 1.11, 1.12 | Typing is one op updated in place until sealed (2 s pause, leaving the node, structural action); only sealed ops reach the sync log. History is append-only except explicit erasure. Compaction squashes only TUI text edits per node per day. Forget node emits a sync tombstone. |
+| D14 | Sync moves | §4 | Parent and position form one "location" field in ops. Phase 5 uses a proven tree-move algorithm (Kleppmann et al.); Phase 0 convergence tests include concurrent moves. |
+| D15 | Mirrors | §4 | Drop the "without migration pain" claim; mirrors need their own design. Stays open after Phase 2. |
+| D16 | App name | 1.8 | Allowed in user-facing places only: directories, binary, window class, export header comment. Never in schema, ops, sync log or JSON field names; `meta` stores a neutral format ID. |
+| D17 | CLI naming | 3.13, 5.12 | Noun groups: `app trash list\|restore\|empty`, `app snapshot list\|restore`, `app history list\|purge`, alongside `app page get\|set`. Core verbs stay top-level. Snapshot restore refuses while a TUI holds the lock. |
