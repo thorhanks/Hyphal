@@ -70,8 +70,8 @@ Our claimed difference: Workflowy-grade editing, in a terminal, with local data 
 | Search operators (`is:complete`, `has:page`, `changed:7d`) | Must | 2 | §6.2 |
 | Starred locations | Must | 2 | §6.6 |
 | Templates | Later | 3 | §10.1 |
-| Mirrors (one bullet in two places) | Later, undecided | 3 | §12.3 |
 | Dates and a Today node | Later, optional | 3 | §10.1 |
+| Mirrors (one bullet in two places) | Never | — | §12.1 |
 | `@person` mentions | Never | — | — |
 | Board (kanban) view | Never in V1 | — | — |
 | Sharing and collaboration | Never | — | §12.1 |
@@ -81,7 +81,7 @@ Our claimed difference: Workflowy-grade editing, in a terminal, with local data 
 ### 4.1 Global tree
 
 - Exactly one root per database ("workspace" and "outline" both mean one database file). The root is a real row with `parent_id` NULL, its ID stored in `meta`, and is shown as **Home**. It can't be renamed, deleted, moved, completed or starred, and has no page.
-- Every other bullet is a node with editable text, ordered children, and a permanent random ID (§7.2).
+- Every other bullet is a node with editable text, ordered children, exactly one parent, and a permanent random ID (§7.2).
 - No distinction between bullet, task or project. Any bullet can also carry a Markdown page (§5.7). Completion is an attribute any node can have.
 - **Zoom** makes any node the temporary root. The zoomed node is shown as a heading, with only its descendants below it. The heading can be focused and edited like a bullet.
 - **Breadcrumbs** show the path to the zoom target. They always start at Home and use `›` as the separator. Long paths are truncated in the middle: `Home › … › Development › Tooltips`.
@@ -754,7 +754,7 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 | `_complete="true"` | Completed bullet (not a task) | `_complete="true"` |
 | `#tags` | Tags, unchanged | Unchanged |
 | `@mentions`, dates | Plain text | Plain text |
-| Mirrors | Independent copies; the mirror link is lost | — |
+| Mirrors | Independent copies; the mirror link is lost. The import summary counts them when the export marks them | — |
 | Boards | Plain children; the board layout is lost | — |
 
 ### 7.6 Sync readiness
@@ -982,7 +982,7 @@ Obsidian's best ideas apply here to nodes rather than files.
 - **Unlinked mentions (Phase 3):** bullets containing the current node's text that don't link to it yet, with a one-key "link it" action.
 - **Peek (Phase 3):** a popup previewing a linked node's subtree without zooming away. The terminal version of Obsidian's hover preview.
 - **Properties (Phase 3):** optional `key:: value` lines at the top of a node's page (`status:: waiting`, `due:: 2026-11-01`), shown as quiet chips and indexed for search (`status:waiting`).
-- **Saved queries (Phase 3):** a bullet whose page starts with `query:: #bug is:open` shows live search results as its virtual children. Results are read-only references; Enter zooms to the real node.
+- **Saved queries (Phase 3):** a bullet whose page starts with `query:: #bug is:open` shows live search results as its virtual children. Results are read-only references with one exception: Toggle complete works on a result and completes the real node, so a query like `#thisweek is:open` works as a checklist. Enter zooms to the real node.
 - **Templates (Phase 3):** any subtree tagged `#template` can be instantiated under the current node with one command, from the command palette.
 - **Today node (Phase 3, optional):** a command that zooms to today's dated bullet under a Journal node, creating it if needed. Off by default; there is no mandatory journal.
 - Graph view and plugins remain non-goals.
@@ -1051,7 +1051,7 @@ Each phase starts only after the previous gate passes. Sync-ready data design st
 
 **Separate follow-up project:** an iPhone app that syncs through the same per-device log format. It is out of scope here; this project only guarantees the format is documented and stable enough to build it.
 
-Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph view, node mirrors, plugins.
+Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph view, plugins.
 
 ## 12. Non-goals, decisions and next steps
 
@@ -1060,6 +1060,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 - No editing of the data outside the app. Exports are copies; the `$EDITOR` round trip is the supported way to edit with another tool.
 - No live sync through Git, Syncthing or cloud folders.
 - No `@person` mentions and no board (kanban) view in V1.
+- No mirrors (one bullet shown live in two places). Every node has exactly one parent; links, tags and saved queries cover the need.
 - No mandatory daily journal or page model.
 - No accounts, subscription, cloud backend or database server.
 - No rich-text or WYSIWYG editing; formatting is Markdown-style markup, rendered with concealment.
@@ -1107,11 +1108,11 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 | 33 | Markdown | One GFM-style dialect for export, import, paste and the editor round trip | §7.5 |
 | 34 | CLI shape | Core verbs top-level, the rest grouped by noun; `--json` envelope and fixed exit codes | §10.2 |
 | 35 | Look | Comfortable density, no indent guides by default; semantic color tokens | §4.6 |
+| 36 | Mirrors | Never; the outline stays a strict tree, and links, tags and saved queries cover multi-context items | §12.1 |
 
 ### 12.3 Still open
 
 - **Project name and branding.** Where the name may appear is settled (§1); the name itself is not.
-- **Mirrors.** One bullet shown live in two places (for example a task in its project and on a weekly list). Decide after Phase 2 whether daily use calls for it. Mirrors turn the tree into a graph and affect export, Trash, cycle checks and sync, so they need their own design; random IDs and self-contained ops don't rule them out.
 - **Color palette size.** Eight named colors is the starting set; confirm against Omarchy themes that each stays legible on light and dark backgrounds.
 - **History retention defaults.** 90 days full, then daily, is a starting point; measure real growth in Phase 0.
 - **Default Markdown export layout.** One file, or one file per top-level node.
@@ -1126,7 +1127,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 - **Phase 3**
   - *Unlinked mentions:* tokenization and a minimum length.
   - *Properties:* their namespace versus `is:`, `has:` and `changed:`; reserved keys.
-  - *Saved queries:* how Enter, Tab, Backspace and move behave on virtual children; whether they are exported; how they look different from real bullets.
+  - *Saved queries:* how Enter, Tab, Backspace and move behave on virtual children; whether a result that stops matching after Toggle complete disappears at once or on the next refresh; whether they are exported; how they look different from real bullets.
   - *Templates:* stripping `#template` from instances; variables such as the date.
   - *Today node:* date format, locale and time zone.
 - **Phase 5**
@@ -1140,7 +1141,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 4. **Omarchy theme reader:** read the current theme's palette, follow live theme switches, and verify file locations against the current Omarchy release.
 5. **Reference mockups:** the five screens listed in §4.6, reviewed side by side with Workflowy and with lazygit and btop under three Omarchy themes, one of them light.
 6. **Keymap matrix:** record which bindings arrive in each terminal, bare and in tmux, before finalizing §6.4, including how Option+Left/Right arrive on macOS.
-7. **Workflowy import:** run a real Workflowy OPML export through the importer and list anything lost.
+7. **Workflowy import:** run a real Workflowy OPML export through the importer and list anything lost, including how mirrors appear and whether they can be detected.
 8. **Stack checks:** confirm Bubble Tea v2 status and its keyboard-protocol support, and choose the pure-Go SQLite driver after verifying FTS5 (trigram tokenizer) and the online backup API; measure fuzzy matching over 100,000 nodes.
 9. **Sync-readiness test:** two simulated devices exchange operation logs in random order and converge (§9.5), before any sync UI exists.
 10. **Implementation plan:** turn this spec into the phased, agent-ready plan, with acceptance criteria per feature (§9.6).
