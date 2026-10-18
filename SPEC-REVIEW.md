@@ -415,3 +415,7 @@ Answers to the open calls raised by this review. Applied to `SPEC.md` in later c
 | D15 | Mirrors | §4 | Drop the "without migration pain" claim; mirrors need their own design. Stays open after Phase 2. |
 | D16 | App name | 1.8 | Allowed in user-facing places only: directories, binary, window class, export header comment. Never in schema, ops, sync log or JSON field names; `meta` stores a neutral format ID. |
 | D17 | CLI naming | 3.13, 5.12 | Noun groups: `app trash list\|restore\|empty`, `app snapshot list\|restore`, `app history list\|purge`, alongside `app page get\|set`. Core verbs stay top-level. Snapshot restore refuses while a TUI holds the lock. |
+| K1 | Filter key | §6.2 | Ctrl+F opens the filter from text editing, `/` from block selection. Typing `/` always inserts a slash. |
+| K2 | Esc chain | 2.4 | Overlay or page → outline; text editing → block selection → clear filter → nothing, with a hint. Esc never zooms out. |
+| K3 | Shift+Enter | 2.7 | Opens the page where distinguishable (kitty protocol); acts as Enter elsewhere. |
+| K4 | Star target | 2.1 | Toggle star acts on the focused or selected bullet; star the zoom target from the zoom heading, which is focusable. |

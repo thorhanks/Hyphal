@@ -82,7 +82,7 @@ Our claimed difference: Workflowy-grade editing, in a terminal, with local data 
 
 - Exactly one logical root per workspace. Every bullet is a node with editable text, ordered children, and an in-memory identity.
 - No distinction between bullet, task or project. Any bullet can also carry a Markdown page (§5.7). Completion is an attribute any node can have.
-- **Zoom** makes any node the temporary root. The zoomed node is shown as a heading, with only its descendants below it.
+- **Zoom** makes any node the temporary root. The zoomed node is shown as a heading, with only its descendants below it. The heading can be focused and edited like a bullet.
 - **Breadcrumbs** show the path to the zoom target. Long paths are truncated in the middle: `Root / … / Development / Tooltips`.
 - Collapse/expand is independent of zoom and persists across sessions (§7.2).
 - No artificial depth limit.
@@ -178,11 +178,13 @@ Omarchy is *omakase*: one beautiful, opinionated default, keyboard first, themed
 
 **Shared keyboard conventions**
 
+The full keymap is in §6.4. The conventions it follows:
+
 - `?` in block selection, or F1 anywhere, shows every command with its key, as lazygit, Impala and BlueTUI do.
-- Esc always backs out one level: text editing → block selection → clear filter → zoom out.
+- Esc backs out one level and never zooms out: overlay or page → outline; text editing → block selection → clear filter. Zooming out is always explicit.
 - Block selection accepts Vim motions (`h` `j` `k` `l`, `gg`, `G`), matching Omarchy's Neovim-first setup.
 - There are no side panes. Backlinks and peek are floating overlays like the palettes; Esc closes them.
-- Ctrl+Q quits from anywhere; there is never anything to save.
+- Ctrl+Q quits from anywhere. Pending typing is flushed first, so there is never anything to save.
 
 **Native app integration**
 
@@ -226,7 +228,7 @@ Omarchy is *omakase*: one beautiful, opinionated default, keyboard first, themed
 ### 5.1 Two states, no modes
 
 - **Text editing (default).** Printable keys type. Commands use modifiers.
-- **Block selection.** Esc selects the current bullet as a whole. Up/Down move the selection; Shift+Up/Down extend it across siblings. Single keys act on the selection. Any printable key that isn't a command, or Enter, returns to text editing.
+- **Block selection.** Esc selects the current bullet as a whole. Up/Down move the selection; Shift+Up/Down extend it across siblings only. Single keys act on the selection (§6.4). Enter or `a` returns to text editing with the cursor at the end of the bullet, `i` at the start. Other printable keys do nothing except show a hint, so text typed after Esc never runs commands by surprise.
 - Block selection accepts Vim-style motions by default (§4.7) because they are single keys. Full Vim-style modal editing is an optional keymap in Phase 4 (§11), never a requirement.
 
 ### 5.2 Enter
@@ -246,7 +248,7 @@ On a split, the first half keeps the node's identity and everything attached to 
 | Situation | Result |
 | --- | --- |
 | Bullet is empty, no children | Delete it; cursor to the end of the previous visible bullet |
-| Bullet is empty, has children | No-op; status line hints to use Esc then delete |
+| Bullet is empty, has children | No-op; status line hints to use Esc then Delete |
 | Bullet has text, no children | Merge text into the end of the previous visible bullet |
 | Bullet has text and children, previous bullet has no children | Merge text; children are adopted by the previous bullet |
 | Bullet has text and children, previous bullet has children | No-op with a hint. Merging would interleave two child lists unpredictably |
@@ -260,7 +262,7 @@ Delete at the end of a bullet mirrors these rules forward.
 
 - **Tab / Shift+Tab** indent or outdent the current bullet (or selection) with its descendants. Indent is a no-op on the first sibling.
 - **Move up/down** among siblings moves whole subtrees. Moving past the first or last sibling moves to the adjacent parent's sibling list, as Workflowy does.
-- **Delete a subtree** (Esc then delete key) never asks for confirmation. It shows an undo toast with the descendant count.
+- **Delete a subtree** (Backspace, Delete or `d` in block selection) never asks for confirmation. It shows an undo toast with the descendant count.
 - **Complete / reopen** toggles a node's completion (storage rule: §7.2). Completed nodes stay in place; a toggle hides them.
 - **Move to…** opens a fuzzy parent picker over all node text, built on the command palette (Phase 1). From Phase 2 it uses the jump palette, with starred locations first. This is how subtrees cross long distances.
 
@@ -281,13 +283,13 @@ Delete at the end of a bullet mirrors these rules forward.
 ### 5.7 Pages
 
 - **Every bullet stays one line.** Long-form writing lives on an optional **page** attached to the bullet: a full Markdown document with headings, lists, code blocks, quotes and tables, as long as you like.
-- **Page zoom:** Alt+Down (or Esc then `p`) opens the bullet's page in view mode; on a bullet without one, it creates an empty page and opens edit mode. Esc from view mode, or Alt+Left, returns to the outline with the cursor where it was. Normal zoom (Alt+Right) still shows only the bullet's children.
+- **Page zoom:** Alt+Down (also Shift+Enter, or `p` in block selection) opens the bullet's page in view mode; on a bullet without one, it creates an empty page and opens edit mode. Esc from view mode, or Alt+Left, returns to the outline with the cursor where it was. Normal zoom (Alt+Right) still shows only the bullet's children.
 - **Title:** the bullet's text is the page title, shown as its heading. Editing either one changes both.
 - **Indicator and preview:** a dim page marker follows the bullet's text. An optional setting, off by default, shows the page's first non-empty line dimmed beneath the focused bullet (§4.6).
 - **Two modes, no live preview.** Editing inside rendered output is the hardest and buggiest part of a Markdown editor, so pages separate reading from writing:
-  - **View mode** renders the Markdown read-only: headings, lists, quotes, tables, and code blocks syntax-highlighted with the theme palette. It scrolls, and Tab moves between links; Enter on a `[[link]]` zooms to its target.
+  - **View mode** renders the Markdown read-only: headings, lists, quotes, tables, and code blocks syntax-highlighted with the theme palette. It scrolls, and Tab moves between links; Enter on the focused `[[link]]` zooms to its target.
   - **Edit mode** is a plain multi-line text editor showing the Markdown exactly as typed. Syntax highlighting keeps it pleasant without concealment: headings bold in the accent color, markers dimmed, code blocks tinted, links underlined. It shares the outline's wrap-layout and cursor engine.
-- **Switching:** `e` or Enter in view mode enters edit mode; Esc in edit mode returns to view mode. The parser's source ranges keep your place: switching scrolls to the same block and puts the cursor on it.
+- **Switching:** `e` in view mode, or Enter with no link focused, enters edit mode; Esc in edit mode returns to view mode. The parser's source ranges keep your place: switching scrolls to the same block and puts the cursor on it.
 - **Split view** (wide terminals): `s` in view mode shows source and rendered output side by side, updating as you type. Off by default; a setting can make it the default above a chosen width.
 - **Common elements of both modes:**
   - The breadcrumb continues with a page marker and the mode: `Projects › ControllerCraft › ≡ view`.
@@ -307,8 +309,8 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 
 | Style | Syntax | Shortcut |
 | --- | --- | --- |
-| Bold | `**text**` | Ctrl+B (Alt+B inside tmux, whose default prefix is Ctrl+B) |
-| Italic | `*text*` | Ctrl+I (Alt+I in legacy terminals, where Ctrl+I equals Tab) |
+| Bold | `**text**` | Ctrl+B (Alt+B inside tmux, §6.4) |
+| Italic | `*text*` | Ctrl+I (Alt+I without the kitty protocol, §6.4) |
 | Strikethrough | `~~text~~` | — |
 | Inline code | `` `text` `` | — |
 | Link (URL) | `[label](https://…)` | — |
@@ -325,21 +327,21 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 
 - `#tag` anywhere in a bullet or page. Letters, digits, `-`, `_` and `/` are allowed; `/` makes nested tags (`#project/lighthouse`), as in Obsidian.
 - Tags render as colored chips. Each tag gets a stable color from the palette, overridable in config.
-- Enter or click on a tag sets the in-place filter to that tag. Typing `#` offers completion from existing tags.
+- Alt+Enter on a tag, or a click (Phase 2), sets the in-place filter to that tag. Enter never follows a tag; it always edits. Typing `#` offers completion from existing tags.
 - A tag list in the command palette shows every tag with its count.
 
 ## 6. Navigation, search, integration and input
 
 ### 6.1 Navigation
 
-- Collapse/expand one node, or all descendants (expand-all with a modifier).
-- Zoom in on the current node; zoom out one level; jump to root.
+- Collapse/expand one node, or all its descendants (keys in §6.4).
+- Zoom in on the current node; zoom out one level; zoom to root.
 - The cursor position is remembered per zoom level. Zooming out returns exactly where you were.
 - Up/Down move through wrapped visual lines, not just logical bullets. Home/End are per visual line, then per bullet on a second press.
 
 ### 6.2 Search
 
-- **In-place filter (Phase 1).** `/` filters the tree as you type: matching nodes stay visible with their ancestors, matches highlighted, everything else hidden. This includes collapsed branches and page text. Esc clears it and keeps the cursor on the selected match.
+- **In-place filter (Phase 1).** Ctrl+F (or `/` in block selection) filters the tree as you type: matching nodes stay visible with their ancestors, matches highlighted, everything else hidden. This includes collapsed branches and page text. Esc clears it and keeps the cursor on the selected match.
 - **Jump palette (Phase 2).** Ctrl+K opens a fuzzy finder over all node text, showing each result's breadcrumb, with starred locations listed first. Enter zooms to the result's parent with the result selected. From Phase 2 the same palette backs "Move to…" (§5.4).
 - **Search operators (Phase 2),** Workflowy-style, in both the filter and the palette:
   - `is:complete`, `is:open`, `is:task`, `has:page`, `is:starred`
@@ -356,26 +358,116 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 
 ### 6.4 Keymap and terminal support
 
-Some key combinations are only distinguishable when the terminal supports the kitty keyboard protocol. The app enables it through Bubble Tea when available. Every binding has a fallback that works in legacy terminals and inside tmux.
+This section is the only place key bindings are defined. Other sections name commands and may mention their keys, but this table wins. In code the keymap is data, one table per context, and a test fails if a key is bound twice in one context or a command has no binding that works without the kitty keyboard protocol.
 
-| Action | Primary | Legacy / tmux fallback |
+**Contexts:** global, text editing, block selection, filter input, page view, page edit (Phase 2) and overlays (palettes, pickers, help, backlinks, peek). The Esc chain moves between them (§4.7).
+
+**Global** (every context)
+
+| Command | Key | Notes |
 | --- | --- | --- |
-| New bullet | Enter | Enter |
-| Indent / outdent | Tab / Shift+Tab | Tab / Shift+Tab |
-| Block selection | Esc | Esc |
-| Move subtree up/down | Ctrl+Shift+Up/Down | Alt+Up/Down, or Esc then K/J |
-| Collapse / expand | Ctrl+Up / Ctrl+Down | Esc then h / l |
-| Zoom in / out | Alt+Right / Alt+Left | Esc then Enter / Backspace |
-| Toggle complete | Ctrl+Enter | Esc then x |
-| Filter / jump | / and Ctrl+K | Same |
-| Open in editor | Ctrl+E | Esc then e |
-| Undo / redo | Ctrl+Z / Ctrl+Shift+Z | Ctrl+Z / Ctrl+Y |
+| Quit | Ctrl+Q | Flushes pending typing first |
+| Help overlay | F1 | Also `?` in block selection; F1 needs Fn on Mac laptops |
+| Command palette | Ctrl+P | |
+| Jump palette (Phase 2) | Ctrl+K | |
+| Undo / redo | Ctrl+Z / Ctrl+Shift+Z | Ctrl+Y also redoes, for terminals that can't send Ctrl+Shift+Z |
 
-- Keymap is configurable in TOML.
+**Text editing** (the default state). The fallback column applies without the kitty keyboard protocol, inside tmux, and on macOS with Option not set as Meta.
+
+| Command | Key | Fallback |
+| --- | --- | --- |
+| New bullet, split, outdent empty bullet | Enter | Same (§5.2) |
+| Backspace / Delete at bullet edges | Backspace / Delete | Same (§5.3) |
+| Indent / outdent | Tab / Shift+Tab | Same |
+| Block selection | Esc | Same |
+| Move by character / visual line | Arrow keys | Same |
+| Move by word | Ctrl+Left / Ctrl+Right | Same; see macOS below |
+| Start / end of visual line, then bullet | Home / End | Same |
+| First / last bullet in the zoom | Ctrl+Home / Ctrl+End | Same |
+| Scroll a screen | Page Up / Page Down | Same |
+| Delete word backward | Ctrl+W, Ctrl+Backspace, Alt+Backspace | Ctrl+W |
+| Extend text selection | Shift+arrows, Shift+Home/End, Ctrl+Shift+Left/Right | Same |
+| Copy / cut selected text | Ctrl+C / Ctrl+X | Same. Ctrl+C with no selection shows "Ctrl+Q quits" |
+| Paste | The terminal's paste (Ctrl+Shift+V, Cmd+V) | Bracketed paste (§5.5); the app binds no paste key |
+| Bold / italic | Ctrl+B / Ctrl+I | Alt+B inside tmux (whose prefix is Ctrl+B) / Alt+I (Ctrl+I equals Tab) |
+| Color picker | Alt+C | Esc `c` |
+| Toggle complete | Ctrl+Enter | Esc `x` |
+| Move subtree up / down | Ctrl+Shift+Up / Down | Esc `K` / `J` |
+| Collapse / expand | Ctrl+Up / Ctrl+Down | Esc `h` / `l` |
+| Zoom in / out | Alt+Right / Alt+Left | Esc `z` / `Z` |
+| Zoom to root | Alt+Home | Esc `gh` |
+| Expand to level 1–9 | Alt+1 … Alt+9 | Esc `1` … `9` |
+| Open page (page zoom) | Alt+Down, Shift+Enter | Alt+Down, Esc `p`. Without the kitty protocol Shift+Enter arrives as Enter |
+| Follow the tag or link under the cursor | Alt+Enter | Same (see the Alt rule below); click in Phase 2 |
+| Toggle star (Phase 2) | Alt+S | Esc `s` |
+| Filter | Ctrl+F | Esc `/` |
+| Open subtree in `$EDITOR` | Ctrl+E | Esc `e` |
+| Duplicate subtree | Ctrl+D | Same |
+| Show / hide completed | Ctrl+O | Same |
+
+**Block selection.** Single keys act on the selected bullets. Modifier bindings from text editing that act on a bullet also work here and apply to the whole selection; Ctrl+B, Ctrl+I and Alt+C format whole bullets (§5.8).
+
+| Key | Command |
+| --- | --- |
+| Up / Down, `j` / `k` | Move the selection |
+| Shift+Up / Shift+Down | Extend the selection across siblings |
+| `gg` / `G` | First / last visible bullet |
+| `h` / `l` | Collapse / expand |
+| `H` / `L` | Collapse / expand all descendants |
+| `1` … `9` | Expand to level N |
+| `J` / `K` | Move subtree down / up |
+| Tab / Shift+Tab | Indent / outdent |
+| `z` / `Z` | Zoom in / out |
+| `gh` | Zoom to root |
+| Enter, `a` / `i` | Return to text editing, cursor at the end / start |
+| `x` | Toggle complete |
+| `t` | Toggle task |
+| `#` | Toggle heading style |
+| Backspace, Delete, `d` | Delete to the Trash, with an undo toast |
+| `y`, Ctrl+C | Copy as Markdown (§5.5) |
+| Ctrl+X | Cut: copy, then delete to the Trash |
+| `p` | Open page |
+| `e` | Open subtree in `$EDITOR` |
+| `c` | Color picker |
+| `s` | Toggle star (Phase 2) |
+| `m` | Move to… (§5.4) |
+| `/` | Filter |
+| `?` | Help overlay |
+| Esc | Clear an active filter; otherwise nothing, with a hint |
+| Other printable keys | Nothing, with a hint |
+
+**Filter input** (§6.2): typing edits the query. Enter or Down moves focus to the outline with the filter still active, on the selected match. Esc clears the filter and leaves the cursor on the selected match. With the filter active, Ctrl+F (or `/` in block selection) returns to the input, and Esc in block selection clears it.
+
+**Page view** (§5.7)
+
+| Key | Command |
+| --- | --- |
+| Up / Down, `j` / `k` | Scroll by line |
+| Space, Page Down / Page Up | Scroll by screen |
+| `gg` / `G` | Top / bottom |
+| Tab / Shift+Tab | Focus next / previous link |
+| Enter | Follow the focused link; with no link focused, edit |
+| `e` | Edit: `$EDITOR` in Phase 1, the built-in editor from Phase 2 |
+| `E` (Phase 2) | Open in `$EDITOR` |
+| `s` (Phase 2) | Toggle split view |
+| Esc, Alt+Left | Back to the outline, cursor where it was |
+
+**Page edit** (Phase 2): the text-editing keys for movement, selection, clipboard and formatting. Enter inserts a newline, Tab inserts two spaces, and Esc returns to view mode.
+
+**Overlays:** typing filters the list; Up/Down or Ctrl+N/Ctrl+P move; Enter chooses; Esc closes.
+
+**Terminal rules**
+
+- **Kitty keyboard protocol.** The app enables it through Bubble Tea when available. Without it, Ctrl+Enter, Shift+Enter, Ctrl+Shift+Z and Ctrl+I can't be told apart from Enter, Enter, Ctrl+Z and Tab, so the fallback column applies.
+- **Alt is Esc then key.** Legacy terminals and tmux send Alt+key as Esc followed by the key, and a quick Esc then key arrives the same way. The app treats both identically: block-selection keys run as if Esc then the key were typed, which leaves you in block selection. The one exception is Alt+Enter, which follows a tag or link; Esc then Enter typed slowly (after the escape timeout) still returns to text editing. A bare Esc is recognised after Bubble Tea's escape timeout; the kitty protocol removes that wait.
+- **tmux.** Inside tmux (detected through `$TMUX`), bold moves to Alt+B. The docs recommend `set -s escape-time 10` and `set -s extended-keys on` (with the `extkeys` terminal feature) and ship the snippet.
+- **Readline and Cocoa keys** are deliberately not emulated, except Ctrl+W (delete word). Ctrl+E, Ctrl+D, Ctrl+K and Ctrl+P are app commands; Home, End and Delete cover their usual editing meanings.
+- **Flow control.** Raw mode disables XON/XOFF, so Ctrl+Q and Ctrl+S reach the app; the test matrix verifies this.
+- **Compositors.** Bindings that a desktop compositor commonly intercepts (Super combinations under Hyprland) are never used.
+- Keymap is configurable in TOML, per context. The same duplicate check runs when the config loads; on a conflict the app keeps the default binding for that command and shows a banner.
 - A test matrix covers Ghostty, Kitty, Alacritty, foot and WezTerm on Linux, and Ghostty, Kitty, Alacritty, WezTerm, iTerm2 and Terminal.app on macOS, each bare and inside tmux, recording which bindings arrive intact.
-- Bindings that a desktop compositor commonly intercepts (Super combinations under Hyprland) are never used.
 
-**macOS keyboard:** by default, macOS terminals send special characters (å, ∫) for Option+key instead of Alt. Every Alt binding therefore has an Esc-based fallback (see the tables above), and on first run on macOS the app shows a one-line hint explaining how to set Option to act as Meta (Alt) in the user's terminal. Apple's Terminal.app is treated as ANSI-only; Ghostty, kitty, WezTerm, Alacritty and iTerm2 are fully supported.
+**macOS keyboard:** by default, macOS terminals send special characters (å, ∫) for Option+key instead of Alt, so every Alt binding has an Esc-based fallback, and on first run on macOS the app shows a one-line hint explaining how to set Option to act as Meta (Alt). macOS also intercepts Ctrl+Up/Down (Mission Control, App Exposé) and Ctrl+Left/Right (Spaces) by default; the same hint mentions this, and `h`/`l` in block selection always work. How Option+Left/Right (word movement in most Mac apps) arrives in each terminal is recorded in the test matrix. Apple's Terminal.app is treated as ANSI-only; Ghostty, kitty, WezTerm, Alacritty and iTerm2 are fully supported.
 
 ### 6.5 Mouse
 
@@ -386,27 +478,16 @@ Some key combinations are only distinguishable when the terminal supports the ki
 ### 6.6 Palettes, stars and small commands
 
 - **Command palette (Ctrl+P, Phase 1):** every command searchable by name, showing its key binding, recently used first. It is the discoverability layer for everything in this spec, so terminal key limits never hide a feature.
-- **Stars (Phase 2):** "Toggle star" (Alt+S, or Esc then `s`) stars the current zoom target. Stars appear first in the jump palette and in a Stars view; `is:starred` finds them.
-- **Small commands (Phase 1):**
+- **Stars (Phase 2):** "Toggle star" stars the bullet you're on: the focused bullet, or the selected ones in block selection. To star the zoom target, toggle it on the zoom heading. Stars appear first in the jump palette and in a Stars view; `is:starred` finds them.
+- **Small commands (Phase 1),** with keys in §6.4:
   - Expand all / collapse all under the current node
-  - Expand to level 1–9 (Alt+1 … Alt+9)
-  - Duplicate subtree (Ctrl+D)
-  - Show / hide completed (Ctrl+O)
+  - Expand to level 1–9
+  - Duplicate subtree
+  - Show / hide completed
+  - Toggle task, toggle heading style
   - Move to… (fuzzy parent picker, §5.4)
   - Copy link to node — Phase 2, with node links (§10.1)
   - Sort children (alphabetical, completed last) — Phase 2
-
-Additional bindings, extending the §6.4 table:
-
-| Action | Primary | Legacy / tmux fallback |
-| --- | --- | --- |
-| Open page (page zoom) | Alt+Down | Esc then `p` |
-| Command palette | Ctrl+P | Same |
-| Color picker | Alt+C | Esc then `c` |
-| Toggle star | Alt+S | Esc then `s` |
-| Page: edit mode / back to view | e or Enter / Esc | Same |
-| Page: open in $EDITOR | E (e in Phase 1) | Same |
-| Page: split view | s | Same |
 
 ## 7. Storage architecture
 
@@ -725,7 +806,7 @@ The app will be built entirely by AI coding agents, working from a phased implem
 
 Obsidian's best ideas apply here to nodes rather than files.
 
-- **Node links (Phase 2):** type `[[` to search and link to any bullet. Links are stored by node ID, so they survive moves and renames, and they display the target's current text. Enter on a link zooms to its target. Markdown export writes Obsidian-style links.
+- **Node links (Phase 2):** type `[[` to search and link to any bullet. Links are stored by node ID, so they survive moves and renames, and they display the target's current text. Alt+Enter on a link (or a click) zooms to its target. Markdown export writes Obsidian-style links.
 - **Backlinks (Phase 3):** an on-demand floating overlay listing every bullet that links to the current node, each with its breadcrumb.
 - **Unlinked mentions (Phase 3):** bullets containing the current node's text that don't link to it yet, with a one-key "link it" action.
 - **Peek (Phase 3):** a popup previewing a linked node's subtree without zooming away. The terminal version of Obsidian's hover preview.
@@ -849,7 +930,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 3. **Wrap-layout and rendering prototype:** one Bubble Tea outline view with grapheme-aware cursor movement, concealed inline formatting, and the centered reading column.
 4. **Omarchy theme reader:** read the current theme's palette, follow live theme switches, and verify file locations against the current Omarchy release.
 5. **Reference mockups:** the five screens listed in §4.6, reviewed side by side with Workflowy and with lazygit and btop under three Omarchy themes, one of them light.
-6. **Keymap matrix:** record which bindings arrive in each terminal, bare and in tmux, before finalizing §6.4 and §6.6.
+6. **Keymap matrix:** record which bindings arrive in each terminal, bare and in tmux, before finalizing §6.4, including how Option+Left/Right arrive on macOS.
 7. **Workflowy import:** run a real Workflowy OPML export through the importer and list anything lost.
 8. **Stack checks:** confirm Bubble Tea v2 status and its keyboard-protocol support, and choose the pure-Go SQLite driver after verifying FTS5.
 9. **Sync-readiness test:** two simulated devices exchange operation logs in random order and converge (§9.5), before any sync UI exists.
