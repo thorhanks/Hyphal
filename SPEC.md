@@ -10,7 +10,7 @@ We are building a local-first, terminal-native infinite outliner in Go, inspired
 
 **Pitch:** An infinite outline for your terminal: one tree, unlimited depth, stored in one open, durable file you can always export.
 
-**Status:** Concept / pre-implementation. Working name TBD; the name must not appear in architecture or file formats.
+**Status:** Concept / pre-implementation. Working name TBD, written `<app>` in this spec. The name appears only in user-facing places: the binary, data and config directory names, the window class, and the comment or header that marks an export. It never appears in the schema, operations, the sync log format or JSON field names, so renaming the app later only means moving directories.
 
 ## 2. Product principles
 
@@ -102,7 +102,7 @@ Projects
 │ ▸ Design notes
 ▸ Lighthouse
 
-Enter new · Tab indent · Esc select · Ctrl+K jump · ? help
+Enter new · Tab indent · Esc select · Ctrl+P commands · F1 help
 ```
 
 ### 4.3 Visual language
@@ -181,7 +181,7 @@ Omarchy is *omakase*: one beautiful, opinionated default, keyboard first, themed
 - `?` in block selection, or F1 anywhere, shows every command with its key, as lazygit, Impala and BlueTUI do.
 - Esc always backs out one level: text editing → block selection → clear filter → zoom out.
 - Block selection accepts Vim motions (`h` `j` `k` `l`, `gg`, `G`), matching Omarchy's Neovim-first setup.
-- With a side pane open (backlinks, peek), Ctrl+W then a direction moves focus, Vim-style. Tab keeps its outline meaning.
+- There are no side panes. Backlinks and peek are floating overlays like the palettes; Esc closes them.
 - Ctrl+Q quits from anywhere; there is never anything to save.
 
 **Native app integration**
@@ -193,7 +193,6 @@ Omarchy is *omakase*: one beautiful, opinionated default, keyboard first, themed
 **Restraint**
 
 - No splash screen, toolbars or busy status bar. Breadcrumbs, the save dot and one line of hints are all the chrome.
-- The empty first-run screen may show a small ASCII wordmark, in the spirit of Omarchy's ASCII branding, and then gets out of the way.
 - Instant response is part of the look: every keypress lands in the next frame (§9.4).
 
 **Reference sketches** (the window border is Hyprland's, not the app's):
@@ -240,6 +239,8 @@ Omarchy is *omakase*: one beautiful, opinionated default, keyboard first, themed
 | End of a collapsed bullet, or a leaf | Create the next sibling |
 | Empty bullet that is not at the top level of the current zoom | Outdent it (Workflowy behavior) |
 
+On a split, the first half keeps the node's identity and everything attached to it: ID, children, page, star, completion, inbound links and history. The second half is a new node.
+
 ### 5.3 Backspace at the start of a bullet
 
 | Situation | Result |
@@ -249,6 +250,9 @@ Omarchy is *omakase*: one beautiful, opinionated default, keyboard first, themed
 | Bullet has text, no children | Merge text into the end of the previous visible bullet |
 | Bullet has text and children, previous bullet has no children | Merge text; children are adopted by the previous bullet |
 | Bullet has text and children, previous bullet has children | No-op with a hint. Merging would interleave two child lists unpredictably |
+| Both bullets have a page | No-op with a hint, for the same reason |
+
+On a merge, the previous bullet survives with its ID, completion state and history. The merged-away bullet goes to the Trash in the same change set; its page moves to the survivor (if the survivor has none), and its star and inbound links are retargeted to the survivor.
 
 Delete at the end of a bullet mirrors these rules forward.
 
@@ -258,7 +262,7 @@ Delete at the end of a bullet mirrors these rules forward.
 - **Move up/down** among siblings moves whole subtrees. Moving past the first or last sibling moves to the adjacent parent's sibling list, as Workflowy does.
 - **Delete a subtree** (Esc then delete key) never asks for confirmation. It shows an undo toast with the descendant count.
 - **Complete / reopen** toggles a node's completion (storage rule: §7.2). Completed nodes stay in place; a toggle hides them.
-- **Move to…** opens the jump palette to pick a new parent. This is how subtrees cross long distances.
+- **Move to…** opens a fuzzy parent picker over all node text, built on the command palette (Phase 1). From Phase 2 it uses the jump palette, with starred locations first. This is how subtrees cross long distances.
 
 ### 5.5 Paste and clipboard
 
@@ -272,7 +276,7 @@ Delete at the end of a bullet mirrors these rules forward.
 - Typing coalesces into one step per node, closed by a 2-second pause, leaving the node, or any structural action.
 - Undo restores cursor and selection position.
 - **Undo survives restarts.** Ctrl+Z after reopening the app continues where you left off.
-- Ctrl+Z only undoes your own TUI change sets. Changes from the CLI, the editor round trip or an agent are reverted from the History view instead, so you never undo something you didn't do.
+- Ctrl+Z undoes change sets you started from the TUI, including `$EDITOR` round trips and page saves made from it. Changes from the CLI or an agent are never undone by Ctrl+Z, so you never undo something you didn't do; they are reverted with `app revert` (Phase 1) or from the History view (Phase 2).
 
 ### 5.7 Pages
 
@@ -336,7 +340,7 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 ### 6.2 Search
 
 - **In-place filter (Phase 1).** `/` filters the tree as you type: matching nodes stay visible with their ancestors, matches highlighted, everything else hidden. This includes collapsed branches and page text. Esc clears it and keeps the cursor on the selected match.
-- **Jump palette (Phase 2).** Ctrl+K opens a fuzzy finder over all node text, showing each result's breadcrumb, with starred locations listed first. Enter zooms to the result's parent with the result selected. The same palette backs "Move to…".
+- **Jump palette (Phase 2).** Ctrl+K opens a fuzzy finder over all node text, showing each result's breadcrumb, with starred locations listed first. Enter zooms to the result's parent with the result selected. From Phase 2 the same palette backs "Move to…" (§5.4).
 - **Search operators (Phase 2),** Workflowy-style, in both the filter and the palette:
   - `is:complete`, `is:open`, `is:task`, `has:page`, `is:starred`
   - `#tag` (includes nested tags), `changed:7d`, `created:2026-10`
@@ -348,7 +352,7 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 - **Edit in `$EDITOR`** (Phase 1): writes the current subtree to a temp Markdown file, suspends the TUI and opens `$EDITOR`. Each line carries its node's ID as a `^id` suffix so edits map back.
 - On exit, the file is parsed and diffed against the subtree. Changed lines update nodes; new lines become new nodes; removed lines move to the Trash. Everything applies as one change set with source `editor`, undoable with Ctrl+Z.
 - If the file can't be parsed, nothing is applied: the temp file is kept and a banner offers to reopen it.
-- **Quick capture** (Phase 1): `app add "text" [--under <path-or-id>]` appends to the Inbox node by default, in its own transaction. A running TUI notices the change through SQLite's `PRAGMA data_version` and refreshes.
+- **Quick capture** (Phase 1): `app add "text" [--under <path-or-id>]` appends to the Inbox node by default, in its own transaction. The Inbox is a top-level node named `Inbox`, created on first use; its ID is stored in `meta`, so it can be renamed or moved freely and capture follows it. A running TUI notices the change through SQLite's `PRAGMA data_version` and refreshes.
 
 ### 6.4 Keymap and terminal support
 
@@ -388,8 +392,8 @@ Some key combinations are only distinguishable when the terminal supports the ki
   - Expand to level 1–9 (Alt+1 … Alt+9)
   - Duplicate subtree (Ctrl+D)
   - Show / hide completed (Ctrl+O)
-  - Move to… (via the jump palette)
-  - Copy link to node
+  - Move to… (fuzzy parent picker, §5.4)
+  - Copy link to node — Phase 2, with node links (§10.1)
   - Sort children (alphabetical, completed last) — Phase 2
 
 Additional bindings, extending the §6.4 table:
@@ -432,7 +436,8 @@ Separate outlines are separate database files, selected with `--db` or a config 
 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
--- schema_version, app name, a one-paragraph description of the schema
+-- schema_version, format_id (neutral, never the app name), device_id,
+-- inbox_id, a one-paragraph description of the schema
 
 CREATE TABLE nodes (
   id           TEXT PRIMARY KEY,     -- random, stable forever
@@ -444,7 +449,9 @@ CREATE TABLE nodes (
   completed_at TEXT,
   created_at   TEXT NOT NULL,
   updated_at   TEXT NOT NULL,
-  deleted_at   TEXT                  -- soft delete; non-null = in Trash
+  version      INTEGER NOT NULL DEFAULT 1,  -- bumped on every write (§7.3)
+  deleted_at   TEXT,                 -- soft delete; non-null = in Trash
+  deleted_by   TEXT                  -- change set that deleted it (§8.3)
 );
 
 CREATE TABLE pages (                 -- at most one page per bullet (§5.7)
@@ -491,6 +498,7 @@ CREATE TABLE view_state (
 - WAL mode with `synchronous=FULL`. The extra cost is negligible at this write rate.
 - The TUI keeps an in-memory tree for rendering; all writes go through `core` to `store`.
 - The CLI opens its own connection with a busy timeout. The TUI polls `PRAGMA data_version` about every 500 ms and reloads changed nodes.
+- **Concurrent edits to one node.** Every write bumps the node's `version`. If another connection changes a node while the TUI holds uncommitted typing on it, the user's typing is never dropped: it commits as a new change set after the other change, which stays in history and can be reverted, and a toast says so. A CLI or agent that must not overwrite newer work passes `--if-version <n>` and gets a conflict error instead. The same rule applies to a page open in `$EDITOR` while `app page set` runs.
 
 ### 7.4 Migrations
 
@@ -531,13 +539,14 @@ Multi-device sync ships in Phase 5, and an iPhone app is a separate follow-up pr
 - Every change set carries a hybrid logical clock (HLC) timestamp and its device ID (§8.2).
 - Operations are self-contained: `after` holds complete field values, not diffs, so they apply correctly in any order.
 - Fractional positions include a device-specific tie-breaker, so concurrent inserts at the same spot never collide.
-- Deletes stay soft; undo and revert create new operations and never rewrite history.
+- Deletes stay soft; undo and revert create new operations and never rewrite history. Only sealed operations are emitted to the log (§8.2).
+- A node's parent and position form one **location** field, so a move is never split across two fields by a merge.
 
 **Merge rules (Phase 5):**
 
-- Each field (text, page, completion, star, position) takes the value with the latest HLC; ties break by device ID.
-- A move that would make a node its own ancestor is skipped and reported.
-- A node whose parent no longer exists is placed under a "Recovered" node at the root, never lost.
+- Each field (text, page, completion, star, location) takes the value with the latest HLC; ties break by device ID.
+- Moves use a proven tree-move algorithm (Kleppmann et al., "A highly-available move operation for replicated trees"): concurrent moves are applied in HLC order, undoing and redoing later moves as needed, so every device skips the same cycle-creating move and all devices converge. Skipped moves are reported.
+- A node whose parent no longer exists goes under its nearest surviving ancestor, else the root (the same rule as Trash restore, §8.3), never lost.
 - An edit to a node that another device deleted keeps the node deleted, with the edit, so it can be restored from the Trash.
 - Page text merges whole-page by latest HLC at first; a line-level merge is a later improvement.
 
@@ -573,7 +582,8 @@ CREATE TABLE ops (
   id            INTEGER PRIMARY KEY,
   change_set_id TEXT NOT NULL REFERENCES change_sets(id),
   node_id       TEXT NOT NULL,
-  kind          TEXT NOT NULL,   -- insert, delete, edit_text, edit_page, move, set_task, set_complete, set_star
+  kind          TEXT NOT NULL,   -- insert, delete, edit_text, edit_page, move, set_task, set_complete, set_star, forget
+                                 -- move carries one location field: {parent_id, position} (§7.6)
   before        TEXT,            -- JSON: prior values of the changed fields
   after         TEXT             -- JSON: complete new values (self-contained, §7.6)
 );
@@ -582,28 +592,31 @@ CREATE TABLE ops (
 - **Current state is authoritative;** history is a record beside it, written in the same transaction. Nothing is rebuilt by replay.
 - **Before and after values** make every operation reversible by applying its inverse.
 - **Change sets** group the operations of one action: a subtree move, a CLI command, an editor round trip. They are the unit of undo, revert and "what did this agent do?".
-- **Coalescing:** consecutive edits to one node's text form a single operation, closed by a 2-second pause, leaving the node, or a structural action.
+- **Coalescing:** consecutive edits to one node's text form a single operation. While open, that operation's row is updated in place at each commit (about every second, §7.3). It is **sealed** by a 2-second pause, leaving the node, a structural action, or quitting. Sealed operations are never changed, and only sealed operations are written to the sync log.
+- **Append-only:** history is never rewritten, except by explicit erasure: compaction, `app history purge` and Forget node (§8.4).
 - **Revert** of an older change set applies its inverses to fields not changed since. Any skipped fields are reported, never overwritten.
 - **History view** (Phase 2): browse a node's past versions and restore one, or list change sets by time and source.
 
 ### 8.3 Trash
 
-- Deleting sets `deleted_at` on the subtree; nothing is removed. The Trash view lists deleted subtrees, newest first.
-- Restore puts a subtree back under its original parent, or under the root if that parent is gone too.
+- Deleting sets `deleted_at` and `deleted_by` (the deleting change set) on every node in the subtree; nothing is removed. The Trash view lists deletions, newest first.
+- Restore brings back exactly one deletion: the nodes whose `deleted_by` matches. A child deleted separately earlier stays in the Trash.
+- A restored subtree returns to its original position among its siblings when that position still exists, otherwise to the end of its parent. If the parent is gone too, it goes under the nearest surviving ancestor, else the root, and the toast says where. Sync uses the same rule (§7.6).
 - Items older than 30 days are purged for real (configurable). "Empty Trash" purges immediately.
 
 ### 8.4 Retention and erasure
 
-- Full history is kept for 90 days, then compacted to one change set per node per day (configurable).
+- Full history is kept for 90 days (configurable). After that, compaction squashes consecutive text and page edits made from the TUI into one operation per node per day. Structural change sets and change sets from the CLI, the editor round trip and agents are never compacted, so they can still be reviewed and reverted as a unit.
 - `app history purge --before <date>` removes older history.
-- **Forget node** erases a node from `nodes`, history and the search index. Snapshots still contain it until they rotate out, and the command says so.
+- **Forget node** erases a node from `nodes`, history and the search index, and writes a `forget` tombstone operation so the node cannot return from another device's sync log. Snapshots still contain it until they rotate out, and the command says so.
 - Expected growth is a few hundred KB per day of heavy use before compaction. This is an estimate to verify in Phase 0.
 
 ### 8.5 Snapshots
 
 - Taken with SQLite's online backup API: hourly while changes are happening, and before every migration or restore.
 - Retention: the last 48 hourly snapshots and 30 daily ones.
-- `app snapshots` lists them; `app restore <snapshot>` restores one after snapshotting the current state first, so a restore is itself reversible.
+- `app snapshot list` lists them; `app snapshot restore <name>` restores one after snapshotting the current state first, so a restore is itself reversible.
+- Restore never replaces the file under a live connection: it refuses while a TUI holds the lock (§8.6). When the TUI offers a restore itself (after a failed integrity check), it closes its connection first and reopens afterwards.
 
 ### 8.6 Locking
 
@@ -693,7 +706,7 @@ Targets are checked in CI with generated databases.
 - **UI tests:** Bubble Tea's `teatest` drives scripted key sequences and compares the rendered screen with golden files.
 - **Interaction matrix:** scripted keystroke tests for every row of the Enter and Backspace tables (§5).
 - **CLI tests:** every command's `--json` output is checked against golden files.
-- **Sync convergence tests** (from Phase 0, before sync ships): two simulated devices apply random operations offline, exchange logs in any order, and end with identical databases (§7.6).
+- **Sync convergence tests** (from Phase 0, before sync ships): two simulated devices apply random operations offline, including concurrent moves that would create cycles, exchange logs in any order, and end with identical databases (§7.6).
 
 ### 9.6 Built by agents
 
@@ -713,7 +726,7 @@ The app will be built entirely by AI coding agents, working from a phased implem
 Obsidian's best ideas apply here to nodes rather than files.
 
 - **Node links (Phase 2):** type `[[` to search and link to any bullet. Links are stored by node ID, so they survive moves and renames, and they display the target's current text. Enter on a link zooms to its target. Markdown export writes Obsidian-style links.
-- **Backlinks (Phase 3):** an on-demand pane listing every bullet that links to the current node, each with its breadcrumb.
+- **Backlinks (Phase 3):** an on-demand floating overlay listing every bullet that links to the current node, each with its breadcrumb.
 - **Unlinked mentions (Phase 3):** bullets containing the current node's text that don't link to it yet, with a one-key "link it" action.
 - **Peek (Phase 3):** a popup previewing a linked node's subtree without zooming away. The terminal version of Obsidian's hover preview.
 - **Properties (Phase 3):** optional `key:: value` lines at the top of a node's page (`status:: waiting`, `due:: 2026-11-01`), shown as quiet chips and indexed for search (`status:waiting`).
@@ -731,21 +744,24 @@ app add "Fix tooltip positioning" --under "Projects/ControllerCraft"
 app show <id|path> [--depth N] --json
 app tree [--root <id>] --json
 app search "tooltip #bug is:open" --json
-app edit <id> --text "New text"
+app edit <id> --text "New text" [--if-version N]
 app move <id> --under <id> [--after <id>]
 app complete <id>        # and: reopen, star, unstar
-app delete <id>          # to Trash; restore <id> brings it back
+app delete <id>          # to Trash
+app trash list|restore <id>|empty
 app page get <id>        # Markdown to stdout
 app page set <id> --file page.md   # or from stdin
 app apply --file ops.json          # many operations as one change set
-app history [--source agent:claude] --json
+app history list [--source agent:claude] --json
+app history purge --before <date>
 app revert <change-set-id>
-app export --format markdown|json|opml --out <dir>
+app export --format markdown|json|opml|text --out <dir>
 app import --format json|opml|markdown <file>
-app snapshots            # and: restore-snapshot <name>
+app snapshot list|restore <name>
 app paths
 ```
 
+- Core verbs on nodes (`add`, `show`, `edit`, `move`, `complete`, `delete`) are top-level; everything else is grouped by noun (`trash`, `page`, `history`, `snapshot`).
 - Nodes are addressed by ID, or by breadcrumb path for convenience. Path lookups return the ID for later calls.
 - Every command supports `--json`, with a stable, versioned schema, consistent error codes and exit statuses. Human-readable output is the default.
 - Every write is one change set tagged with its source: `cli` by default, `--source agent:<name>` for agents, so their changes can be reviewed and reverted as a unit.
@@ -819,13 +835,11 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 
 ### 12.3 Still open
 
-- **Project name and branding.** Must not appear in the schema or export formats.
-- **Mirrors.** One bullet shown live in two places (for example a task in its project and on a weekly list). Decide after Phase 2 whether daily use calls for it; the schema can add a reference row type without migration pain.
+- **Project name and branding.** Where the name may appear is settled (§1); the name itself is not.
+- **Mirrors.** One bullet shown live in two places (for example a task in its project and on a weekly list). Decide after Phase 2 whether daily use calls for it. Mirrors turn the tree into a graph and affect export, Trash, cycle checks and sync, so they need their own design; random IDs and self-contained ops don't rule them out.
 - **Color palette size.** Eight named colors is the starting set; confirm against Omarchy themes that each stays legible on light and dark backgrounds.
 - **History retention defaults.** 90 days full, then daily, is a starting point; measure real growth in Phase 0.
 - **Default Markdown export layout.** One file, or one file per top-level node.
-- **Inbox location.** A fixed top-level `Inbox` node versus a configurable default.
-- **Multi-select range.** Siblings only (simpler, Workflowy-like) or any contiguous visible rows.
 - **Sync details.** The direction is settled (§7.6). Open details: HLC drift handling, compaction thresholds, and whether page text later merges line by line.
 
 ### 12.4 Immediate next steps
