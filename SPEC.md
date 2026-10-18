@@ -876,10 +876,10 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 | Language | Go | Simple, fast to compile, one static binary; well suited to agent-driven development |
 | UI framework | Bubble Tea (v2 if released) | Elm-style update/view loop; v2 brings kitty keyboard protocol support. Confirm release status in Phase 0 |
 | Styling and layout | Lip Gloss | Theme-driven styles; rendered rows cached per bullet |
-| Components | Bubbles (text area, viewport, list) | Starting point for the page edit mode and palettes; the outline editor is custom |
+| Components | Bubbles (viewport, list) | Palettes and page view. The outline editor and the page edit mode are custom, sharing one wrap-layout and cursor engine (§9.3); Bubbles' text area can't share it |
 | CLI | Cobra | Shared by quick capture, scripting and agents |
-| Database | Pure-Go SQLite driver (`modernc.org/sqlite` or `ncruces/go-sqlite3`) | No C toolchain, so cross-builds for Linux and macOS stay simple. Confirm FTS5 support when choosing |
-| Text | `rivo/uniseg`, `mattn/go-runewidth` | Grapheme-aware cursor; correct display width for CJK and emoji |
+| Database | Pure-Go SQLite driver (`modernc.org/sqlite` or `ncruces/go-sqlite3`) | No C toolchain, so cross-builds for Linux and macOS stay simple. Confirm FTS5 with the `trigram` tokenizer and the online backup API when choosing |
+| Text | `rivo/uniseg` | Grapheme segmentation and display width from one library, so the cursor and rendering never disagree on CJK and emoji |
 | Markdown | goldmark | Page rendering, with source positions for mode switching |
 | Fuzzy matching | A Go fuzzy-finder library such as `sahilm/fuzzy` | Jump and command palettes |
 | Import / export | `encoding/json`, `encoding/xml`, small list parser | JSON, OPML, Markdown; the parser also serves the editor round trip |
@@ -930,13 +930,13 @@ The TUI and CLI never touch the database directly; only `store` does. That keeps
 
 | Measure | Target | Workload |
 | --- | --- | --- |
-| Cold launch to first frame | < 100 ms | 10,000 nodes |
+| Cold launch to first frame | < 100 ms | 10,000 nodes; the integrity check runs after the first frame (§8.1) |
 | Keypress to frame | < 16 ms | Same, typing in a deep node |
-| One action committed (state + history) | < 5 ms | Same |
+| One action committed (state + history) | < 5 ms on Linux | Same. On macOS, real durability needs `PRAGMA fullfsync`, often 5–20 ms; commits run off the UI loop, so this never delays a frame |
 | In-place filter update | < 50 ms per keystroke | 100,000 nodes |
 | CLI change visible in a running TUI | < 1 s | Any |
 
-Targets are checked in CI with generated databases.
+Targets are checked with generated databases: as absolute numbers on fixed benchmark hardware, and in CI only as regressions against a stored baseline, because shared runners are too noisy for absolute thresholds.
 
 ### 9.5 Testing
 
@@ -1120,7 +1120,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 5. **Reference mockups:** the five screens listed in §4.6, reviewed side by side with Workflowy and with lazygit and btop under three Omarchy themes, one of them light.
 6. **Keymap matrix:** record which bindings arrive in each terminal, bare and in tmux, before finalizing §6.4, including how Option+Left/Right arrive on macOS.
 7. **Workflowy import:** run a real Workflowy OPML export through the importer and list anything lost.
-8. **Stack checks:** confirm Bubble Tea v2 status and its keyboard-protocol support, and choose the pure-Go SQLite driver after verifying FTS5.
+8. **Stack checks:** confirm Bubble Tea v2 status and its keyboard-protocol support, and choose the pure-Go SQLite driver after verifying FTS5 (trigram tokenizer) and the online backup API; measure fuzzy matching over 100,000 nodes.
 9. **Sync-readiness test:** two simulated devices exchange operation logs in random order and converge (§9.5), before any sync UI exists.
 10. **Implementation plan:** turn this spec into the phased, agent-ready plan, with acceptance criteria per feature (§9.6).
 
