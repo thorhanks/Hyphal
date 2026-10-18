@@ -242,9 +242,9 @@ The full keymap is in §6.4. The conventions it follows:
 ```text
              ╭─ Commands ─────────────────────────────╮
              │ › col                                  │
-             │   Color bullet…                 Alt+C  │
+             │   Color bullet…                 Esc c  │
              │   Collapse all                         │
-             │   Expand to level…           Alt+1–9   │
+             │   Expand to level…           Esc 1–9   │
              ╰────────────────────────────────────────╯
 ```
 
@@ -254,7 +254,7 @@ Phase 1 needs these screens besides the outline and the page view. Later-phase s
 
 - **Trash view** (full screen, §8.3): one row per deletion, newest first: the deleted bullet's text, its former breadcrumb, the descendant count and the age. Enter previews the subtree read-only; `r` restores; `d` purges that deletion after a one-line confirmation (the only confirmation in the app, because purging is final); Esc returns to the outline.
 - **Help overlay** (F1, `?`): every command in the current context with its key, generated from the keymap (§6.4), filterable by typing.
-- **Color picker** (Alt+C): an overlay listing the eight colors as swatches with their names, plus "No color". `1`–`8` or arrows and Enter choose; Esc cancels.
+- **Color picker** (`c` in block selection, or the command palette): an overlay listing the eight colors as swatches with their names, plus "No color". `1`–`8` or arrows and Enter choose; Esc cancels.
 - **Read-only mode** (newer schema, failed integrity check, or a second TUI): a persistent banner says why; everything works except changes, and any editing key shows a hint instead.
 
 ## 5. Editing behavior
@@ -360,7 +360,7 @@ Identity follows the merge rule above: the current bullet keeps its ID, and the 
 ### 5.7 Pages
 
 - **Every bullet stays one line.** Long-form writing lives on an optional **page** attached to the bullet: a full Markdown document with headings, lists, code blocks, quotes and tables, as long as you like.
-- **Page zoom:** Alt+Down (also Shift+Enter, or `p` in block selection) opens the bullet's page in view mode; on a bullet without one, it opens an empty page in edit mode (`$EDITOR` in Phase 1). A page saved empty is not created; clearing an existing page's text deletes the page, as one undoable change. Esc from view mode, or Alt+Left, returns to the outline with the cursor where it was. Normal zoom (Alt+Right) still shows only the bullet's children.
+- **Page zoom:** `p` in block selection (also Shift+Enter with the kitty protocol) opens the bullet's page in view mode; on a bullet without one, it opens an empty page in edit mode (`$EDITOR` in Phase 1). A page saved empty is not created; clearing an existing page's text deletes the page, as one undoable change. Esc from view mode returns to the outline with the cursor where it was. Normal zoom (`z`) still shows only the bullet's children.
 - **Title:** the bullet's text is the page title. It is not stored in `pages.markdown`; view mode renders it as the page heading, with inline markup.
   - In `$EDITOR` and in edit mode, the title appears as a first line `# Title`. Changing that line renames the bullet. Deleting it leaves the bullet's text unchanged.
   - **Delete page** (command palette) removes the page from a bullet, as one undoable change.
@@ -384,21 +384,22 @@ Identity follows the merge rule above: the current bullet keeps its ID, and the 
 
 ### 5.8 Inline formatting and color
 
-Formatting uses Markdown-style markers, typed directly or applied with shortcuts. Markers are concealed except on the bullet being edited.
+Formatting uses Markdown-style markers, typed directly or wrapped around selected text. Markers are concealed except on the bullet being edited.
 
-| Style | Syntax | Shortcut |
+| Style | Syntax | With text selected, type |
 | --- | --- | --- |
-| Bold | `**text**` | Ctrl+B (Alt+B inside tmux, §6.4) |
-| Italic | `*text*` | Ctrl+I (Alt+I without the kitty protocol, §6.4) |
-| Strikethrough | `~~text~~` | — |
-| Inline code | `` `text` `` | — |
+| Bold | `**text**` | `*` twice |
+| Italic | `*text*` | `*` |
+| Strikethrough | `~~text~~` | `~` twice |
+| Inline code | `` `text` `` | `` ` `` |
 | Link (URL) | `[label](https://…)` | — |
-| Highlight | `==text==` | — |
-| Text color | `<red>text</red>` | Alt+C opens a color picker |
+| Highlight | `==text==` | `=` twice |
+| Text color | `<red>text</red>` | — (Color… in the command palette) |
 
 - **Colors:** `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple`, `gray`. Each maps to the theme palette (ANSI first, Omarchy truecolor when available), so colored text follows theme changes.
 - `<red>` and `==highlight==` were chosen because they are short and readable when concealment is off. `<red>` is not HTML, so Markdown export converts it (below). `==highlight==` renders in Obsidian but not in plain CommonMark tools. Unknown tags are left as plain text.
-- Shortcuts apply to the text selection (Shift+Left/Right in text editing) or, in block selection, to the whole bullet. Applying a color to whole bullets (Alt+C or `c` in block selection) wraps each selected bullet's text in one color tag, replacing any color tag that already wraps it.
+- **Wrapping:** with text selected (Shift+arrows in text editing), typing `*`, `~`, `=` or `` ` `` wraps the selection in that character instead of replacing it, and keeps it selected, so a second press nests the wrap (`*` twice makes bold). The command palette's Bold, Italic and Color… commands apply to the text selection, or to whole bullets in block selection.
+- Applying a color to whole bullets (`c` in block selection) wraps each selected bullet's text in one color tag, replacing any color tag that already wraps it.
 - **Grammar:**
   - Opening markers can't be followed by a space and closing markers can't follow one, as in CommonMark, so `2 * 3 * 4` stays literal.
   - Styles nest (`**bold *and italic***`) but never overlap; an unmatched marker is literal text.
@@ -413,7 +414,7 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 
 - `#tag` anywhere in a bullet or page. Letters, digits, `-`, `_` and `/` are allowed; `/` makes nested tags (`#project/lighthouse`), as in Obsidian.
 - Tags render as colored chips. Each tag gets a stable color from the palette, overridable in config.
-- Alt+Enter on a tag, or a click (Phase 2), sets the in-place filter to that tag. Enter never follows a tag; it always edits. Typing `#` offers completion from existing tags.
+- `o` in block selection, or a click (Phase 2), sets the in-place filter to the bullet's tag. Enter never follows a tag; it always edits. Typing `#` offers completion from existing tags.
 - A tag list in the command palette shows every tag with its count.
 
 ## 6. Navigation, search, integration and input
@@ -456,54 +457,50 @@ Formatting uses Markdown-style markers, typed directly or applied with shortcuts
 
 ### 6.4 Keymap and terminal support
 
-This section is the only place key bindings are defined. Other sections name commands and may mention their keys, but this table wins. In code the keymap is data, one table per context, and a test fails if a key is bound twice in one context or a command has no binding that works without the kitty keyboard protocol.
+This section is the only place key bindings are defined. Other sections name commands and may mention their keys, but this table wins. In code the keymap is data, one table per context, and a test fails if a key is bound twice in one context, a command has no binding that works without the kitty keyboard protocol, or a default binding outside word editing uses Alt.
 
 **Contexts:** global, text editing, block selection, filter input, page view, page edit (Phase 2), overlays (palettes, pickers, help, backlinks) and the Trash view. The Esc chain moves between them (§4.7).
+
+**Two layers.** Block selection is the complete layer: every bullet command has a single key there, and single keys arrive the same in every terminal, on Linux and macOS. Chords are shortcuts for the most frequent commands, limited to keys that also arrive everywhere: Ctrl+letter, Tab, Shift+arrows and Ctrl+Shift+Up/Down. No command is bound to Alt, Option, Cmd or a bare Ctrl+arrow; Alt appears only in word-editing keys, as terminals send them. A few keys that need the kitty keyboard protocol are bound as alternatives only.
 
 **Global** (every context, unless that context's table rebinds the key)
 
 | Command | Key | Notes |
 | --- | --- | --- |
 | Quit | Ctrl+Q | Flushes pending typing first |
-| Help overlay | F1 | Also `?` in block selection; F1 needs Fn on Mac laptops |
+| Help overlay | `?` in block selection, F1 | F1 needs Fn on Mac laptops |
 | Command palette | Ctrl+P | |
 | Jump palette (Phase 2) | Ctrl+K | |
-| Undo / redo | Ctrl+Z / Ctrl+Shift+Z | Ctrl+Y also redoes, for terminals that can't send Ctrl+Shift+Z |
+| Undo / redo | Ctrl+Z / Ctrl+Y | Ctrl+Shift+Z also redoes, with the kitty protocol |
 
-**Text editing** (the default state). The fallback column applies without the kitty keyboard protocol, inside tmux, and on macOS with Option not set as Meta.
+**Text editing** (the default state). Commands without a chord here are in block selection: Esc, then the key.
 
-| Command | Key | Fallback |
+| Command | Key | Notes |
 | --- | --- | --- |
-| New bullet, split, outdent empty bullet | Enter | Same (§5.2) |
-| Backspace / Delete at bullet edges | Backspace / Delete | Same (§5.3) |
-| Indent / outdent | Tab / Shift+Tab | Same |
-| Block selection | Esc | Same |
-| Move by character / visual line | Arrow keys | Same |
-| Move by word | Ctrl+Left / Ctrl+Right | Same; see macOS below |
-| Start / end of visual line, then bullet | Home / End | Same |
-| First / last bullet in the zoom | Ctrl+Home / Ctrl+End | Same |
-| Scroll a screen | Page Up / Page Down | Same |
-| Delete word backward | Ctrl+W, Ctrl+Backspace, Alt+Backspace | Ctrl+W |
-| Extend text selection | Shift+arrows, Shift+Home/End, Ctrl+Shift+Left/Right | Same |
-| Copy / cut selected text | Ctrl+C / Ctrl+X | Same. Ctrl+C with no selection shows "Ctrl+Q quits" |
+| New bullet, split, outdent empty bullet | Enter | §5.2 |
+| Backspace / Delete at bullet edges | Backspace / Delete | §5.3 |
+| Indent / outdent | Tab / Shift+Tab | |
+| Block selection | Esc | |
+| Move by character / visual line | Arrow keys | |
+| Move by word | Ctrl+Left / Ctrl+Right, Alt+Left / Alt+Right, Esc `b` / `f` | Whichever the terminal sends; Option+Left/Right on macOS |
+| Start / end of visual line, then bullet | Home / End, Ctrl+A / Ctrl+E | Cmd+Left/Right on macOS, where the terminal maps them |
+| First / last bullet in the zoom | Ctrl+Home / Ctrl+End | |
+| Scroll a screen | Page Up / Page Down | |
+| Delete word backward | Ctrl+W, Ctrl+Backspace, Alt+Backspace | Option+Backspace on macOS |
+| Delete to start of visual line | Ctrl+U | Cmd+Backspace on macOS, where the terminal maps it |
+| Extend text selection | Shift+arrows, Shift+Home/End, Ctrl+Shift+Left/Right | |
+| Wrap selected text in a marker | `*`, `~`, `=`, `` ` `` | Only with text selected (§5.8) |
+| Copy / cut selected text | Ctrl+C / Ctrl+X | Ctrl+C with no selection shows "Ctrl+Q quits" |
 | Paste | The terminal's paste (Ctrl+Shift+V, Cmd+V) | Bracketed paste (§5.5); the app binds no paste key |
-| Bold / italic | Ctrl+B / Ctrl+I | Alt+B inside tmux (whose prefix is Ctrl+B) / Alt+I (Ctrl+I equals Tab) |
-| Color picker | Alt+C | Esc `c` |
-| Toggle complete | Ctrl+Enter | Esc `x` |
-| Move subtree up / down | Ctrl+Shift+Up / Down | Same |
-| Collapse / expand | Ctrl+Up / Ctrl+Down | Esc `-` / `+` |
-| Zoom in / out | Alt+Right / Alt+Left | Esc `z` / `Z` |
-| Zoom to root | Alt+Home | Esc Home |
-| Expand to level 1–9 | Alt+1 … Alt+9 | Esc `1` … `9` |
-| Open page (page zoom) | Alt+Down, Shift+Enter | Alt+Down, Esc `p`. Without the kitty protocol Shift+Enter arrives as Enter |
-| Follow the tag or link under the cursor | Alt+Enter | Same (see the Alt rule below); click in Phase 2 |
-| Toggle star (Phase 2) | Alt+S | Esc `s` |
-| Filter | Ctrl+F | Esc `/` |
-| Open subtree in `$EDITOR` | Ctrl+E | Esc `e` |
-| Duplicate subtree | Ctrl+D | Same |
-| Show / hide completed | Ctrl+O | Same |
+| Move subtree up / down | Ctrl+Shift+Up / Down | |
+| Toggle complete | Ctrl+Enter | Kitty protocol only; Esc `x` works everywhere |
+| Open page (page zoom) | Shift+Enter | Kitty protocol only; Esc `p` works everywhere |
+| Filter | Ctrl+F | |
+| Open subtree in `$EDITOR` | Ctrl+G | |
+| Duplicate subtree | Ctrl+D | |
+| Show / hide completed | Ctrl+O | |
 
-**Block selection.** Single keys act on the selected bullets. Modifier bindings from text editing that act on a bullet also work here and apply to the whole selection; Ctrl+B, Ctrl+I and Alt+C format whole bullets (§5.8).
+**Block selection.** Single keys act on the selected bullets. Chords from text editing that act on a bullet also work here and apply to the whole selection.
 
 | Key | Command |
 | --- | --- |
@@ -523,6 +520,7 @@ This section is the only place key bindings are defined. Other sections name com
 | `y`, Ctrl+C | Copy as Markdown (§5.5) |
 | Ctrl+X | Cut: copy, then delete to the Trash |
 | `p` | Open page |
+| `o` | Follow the bullet's link or tag; with several, a picker lists them |
 | `e` | Open subtree in `$EDITOR` |
 | `c` | Color picker |
 | `s` | Toggle star (Phase 2) |
@@ -531,6 +529,8 @@ This section is the only place key bindings are defined. Other sections name com
 | `?` | Help overlay |
 | Esc | Clear an active filter; otherwise nothing, with a hint |
 | Other printable keys | Nothing, with a hint |
+
+`b` and `f` stay unbound in block selection (see the Esc rule below).
 
 **Filter input** (§6.2): typing edits the query. Enter or Down moves focus to the outline with the filter still active, on the selected match. Esc clears the filter and leaves the cursor on the selected match. With the filter active, Ctrl+F (or `/` in block selection) returns to the input, and Esc in block selection clears it.
 
@@ -546,9 +546,9 @@ This section is the only place key bindings are defined. Other sections name com
 | `e` | Edit: `$EDITOR` in Phase 1, the built-in editor from Phase 2 |
 | `E` (Phase 2) | Open in `$EDITOR` |
 | `s` (Phase 2) | Toggle split view |
-| Esc, Alt+Left | Back to the outline, cursor where it was |
+| Esc | Back to the outline, cursor where it was |
 
-**Page edit** (Phase 2): the text-editing keys for movement, selection, clipboard and formatting. Enter inserts a newline, Tab inserts two spaces, and Esc returns to view mode.
+**Page edit** (Phase 2): the text-editing keys for movement, selection, clipboard and wrapping. Enter inserts a newline, Tab inserts two spaces, and Esc returns to view mode.
 
 **Overlays:** typing filters the list; Up/Down or Ctrl+N/Ctrl+P move (inside an overlay Ctrl+P moves up instead of reopening the palette); Enter chooses; Esc closes. In the color picker, `1`–`8` choose a color directly.
 
@@ -556,20 +556,18 @@ This section is the only place key bindings are defined. Other sections name com
 
 **Terminal rules**
 
-- **Kitty keyboard protocol.** The app enables it through Bubble Tea when available. Without it, Ctrl+Enter, Shift+Enter, Ctrl+Shift+Z and Ctrl+I can't be told apart from Enter, Enter, Ctrl+Z and Tab, so the fallback column applies.
-- **Alt is Esc then key.** Legacy terminals and tmux send Alt+key as Esc followed by the key, and a quick Esc then key arrives the same way. The rule for a quick Esc+key sequence:
-  - If text editing binds that Alt+key, the binding wins. For Alt+C, Alt+S and Alt+1–9 this matches Esc then the key anyway.
-  - Four Alt bindings mean something different from Esc then the key, so their block-selection meaning applies only when Esc is typed slowly (after the escape timeout): Alt+Enter (follow a link) versus Enter (back to editing), Alt+I (italic) versus `i`, Alt+Backspace (delete a word) versus Backspace (delete the subtree), and Alt+Down (open the page) versus Down (move the selection). The keymap test lists these four pairs explicitly and fails on any new one.
-  - Any other Alt+key runs as Esc then the key, which leaves you in block selection.
+- **Kitty keyboard protocol.** The app enables it through Bubble Tea when available. Only Ctrl+Enter, Shift+Enter and Ctrl+Shift+Z need it (without it they arrive as Enter, Enter and Ctrl+Z), and each is an alternative to a key that works everywhere.
+- **No Alt commands.** Legacy terminals and tmux send Alt+key as Esc then the key, and macOS terminals send special characters for Option+key unless Option is set as Meta, so the app binds Alt only for word editing. An Alt+key that arrives as Esc then the key simply runs that key in block selection.
+- **Word-editing exception.** A quick Esc followed by `b`, `f` or Backspace (what Option+Left/Right/Backspace send in many macOS terminals, and Alt in others) is read as word left, word right or delete word, not as block selection. A slow Esc then Backspace still deletes the subtree. The keymap test lists these three sequences and fails on any new one.
 - **Bare Esc** is recognised after Bubble Tea's escape timeout; the kitty protocol removes that wait.
-- **tmux.** Inside tmux (detected through `$TMUX`), bold moves to Alt+B. The docs recommend `set -s escape-time 10` and `set -s extended-keys on` (with the `extkeys` terminal feature) and ship the snippet.
-- **Readline and Cocoa keys** are deliberately not emulated, except Ctrl+W (delete word). Ctrl+E, Ctrl+D, Ctrl+K and Ctrl+P are app commands; Home, End and Delete cover their usual editing meanings.
+- **tmux.** The docs recommend `set -s escape-time 10` and `set -s extended-keys on` (with the `extkeys` terminal feature) and ship the snippet.
+- **Readline keys.** The editing keys that macOS terminals send for Cmd and Option combinations are supported on both platforms: Ctrl+A, Ctrl+E, Ctrl+U, Ctrl+W and Esc `b`/`f`. Other readline keys are not emulated: Ctrl+D, Ctrl+K and Ctrl+P are app commands.
 - **Flow control.** Raw mode disables XON/XOFF, so Ctrl+Q and Ctrl+S reach the app; the test matrix verifies this.
-- **Compositors.** Bindings that a desktop compositor commonly intercepts (Super combinations under Hyprland) are never used.
+- **Compositors.** Bindings that a desktop compositor commonly intercepts (Super combinations under Hyprland, Ctrl+arrows under macOS) are never used.
 - Keymap is configurable in TOML, per context. The same duplicate check runs when the config loads; on a conflict the app keeps the default binding for that command and shows a banner.
 - A test matrix covers Ghostty, Kitty, Alacritty, foot and WezTerm on Linux, and Ghostty, Kitty, Alacritty, WezTerm, iTerm2 and Terminal.app on macOS, each bare and inside tmux, recording which bindings arrive intact.
 
-**macOS keyboard:** by default, macOS terminals send special characters (å, ∫) for Option+key instead of Alt, so every Alt binding has an Esc-based fallback, and on first run on macOS the app shows a one-line hint explaining how to set Option to act as Meta (Alt). macOS also intercepts Ctrl+Up/Down (Mission Control, App Exposé) and Ctrl+Left/Right (Spaces) by default; the same hint mentions this, and `-`/`+` in block selection always work. How Option+Left/Right (word movement in most Mac apps) arrives in each terminal is recorded in the test matrix. Apple's Terminal.app is treated as ANSI-only; Ghostty, kitty, WezTerm, Alacritty and iTerm2 are fully supported.
+**macOS keyboard:** the keymap is the same as on Linux and needs no terminal setup. Cmd+Left/Right and Cmd+Backspace work where the terminal maps them to Ctrl+A, Ctrl+E and Ctrl+U (Ghostty by default, iTerm2 with its Natural Text Editing preset); Option+Left/Right/Backspace work as Esc `b`/`f`/Backspace or as Alt+arrows. Ctrl+Left/Right word movement may be taken by Spaces. Apple's Terminal.app is treated as ANSI-only; Ghostty, kitty, WezTerm, Alacritty and iTerm2 are fully supported.
 
 ### 6.5 Mouse
 
@@ -970,7 +968,7 @@ The app will be built entirely by AI coding agents, working from a phased implem
 
 Obsidian's best ideas apply here to nodes rather than files.
 
-- **Node links (Phase 2):** type `[[` to search and link to any bullet. Links are stored by node ID, so they survive moves and renames, and they display the target's current text. Alt+Enter on a link (or a click) zooms to its target. Markdown export writes Obsidian-style links.
+- **Node links (Phase 2):** type `[[` to search and link to any bullet. Links are stored by node ID, so they survive moves and renames, and they display the target's current text. `o` in block selection (or a click) zooms to its target. Markdown export writes Obsidian-style links.
 - **Backlinks (Phase 3):** an on-demand floating overlay listing every bullet that links to the current node, each with its breadcrumb.
 - **Properties (Phase 3):** optional `key:: value` lines at the top of a node's page (`status:: waiting`, `due:: 2026-11-01`), shown as quiet chips and indexed for search (`status:waiting`).
 - **Saved queries (Phase 3):** a bullet whose page starts with `query:: #bug is:open` shows live search results as its virtual children. Results are read-only references with one exception: Toggle complete works on a result and completes the real node, so a query like `#thisweek is:open` works as a checklist. Enter zooms to the real node.
@@ -1088,7 +1086,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 | 22 | Builders | Built entirely by AI agents from a phased plan; every behavior has an automated test | §9.6 |
 | 23 | App name | Only in user-facing places; never in schema, ops, sync log or JSON fields | §1 |
 | 24 | Root and Inbox | A fixed Home root; a top-level Inbox found by ID | §4.1, §6.3 |
-| 25 | Keymap | One authoritative table per context; Alt+key equals Esc then key; Esc never zooms out; typing never leaves block selection | §6.4 |
+| 25 | Keymap | One authoritative table per context; every command has a block-selection key; no Alt commands; same keys on Linux and macOS; Esc never zooms out; typing never leaves block selection | §6.4 |
 | 26 | Overlays | Backlinks and palettes are floating overlays; no side panes | §4.7 |
 | 27 | Undo scope | Ctrl+Z covers TUI-started changes, including `$EDITOR` round trips; CLI and agent changes are reverted | §5.6 |
 | 28 | Identity | Split keeps the ID on the first half; merges keep the earlier bullet and retarget stars and links | §5.2–5.3a |
@@ -1129,7 +1127,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 3. **Wrap-layout and rendering prototype:** one Bubble Tea outline view with grapheme-aware cursor movement, concealed inline formatting, and the centered reading column.
 4. **Omarchy theme reader:** read the current theme's palette, follow live theme switches, and verify file locations against the current Omarchy release.
 5. **Reference mockups:** the five screens listed in §4.6, reviewed side by side with Workflowy and with lazygit and btop under three Omarchy themes, one of them light.
-6. **Keymap matrix:** record which bindings arrive in each terminal, bare and in tmux, before finalizing §6.4, including how Option+Left/Right arrive on macOS.
+6. **Keymap matrix:** record which bindings arrive in each terminal, bare and in tmux, before finalizing §6.4, including how Option+Left/Right/Backspace and Cmd+Left/Right arrive on macOS and that macOS leaves Ctrl+Shift+Up/Down alone.
 7. **Workflowy import:** run a real Workflowy OPML export through the importer and list anything lost, including how mirrors appear and whether they can be detected.
 8. **Stack checks:** confirm Bubble Tea v2 status and its keyboard-protocol support, and choose the pure-Go SQLite driver after verifying FTS5 (trigram tokenizer) and the online backup API; measure fuzzy matching over 100,000 nodes.
 9. **Sync-readiness test:** two simulated devices exchange operation logs in random order and converge (§9.5), before any sync UI exists.
