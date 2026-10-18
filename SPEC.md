@@ -566,7 +566,8 @@ This section is the only place key bindings are defined. Other sections name com
 - **Alt is Esc then key.** Legacy terminals and tmux send Alt+key as Esc followed by the key, and a quick Esc then key arrives the same way. The rule for a quick Esc+key sequence:
   - If text editing binds that Alt+key, the binding wins. For Alt+C, Alt+S and Alt+1–9 this matches Esc then the key anyway.
   - Four Alt bindings mean something different from Esc then the key, so their block-selection meaning applies only when Esc is typed slowly (after the escape timeout): Alt+Enter (follow a link) versus Enter (back to editing), Alt+I (italic) versus `i`, Alt+Backspace (delete a word) versus Backspace (delete the subtree), and Alt+Down (open the page) versus Down (move the selection). The keymap test lists these four pairs explicitly and fails on any new one.
-  - Any other Alt+key runs as Esc then the key, which leaves you in block selection. A bare Esc is recognised after Bubble Tea's escape timeout; the kitty protocol removes that wait.
+  - Any other Alt+key runs as Esc then the key, which leaves you in block selection.
+- **Bare Esc** is recognised after Bubble Tea's escape timeout; the kitty protocol removes that wait.
 - **tmux.** Inside tmux (detected through `$TMUX`), bold moves to Alt+B. The docs recommend `set -s escape-time 10` and `set -s extended-keys on` (with the `extkeys` terminal feature) and ship the snippet.
 - **Readline and Cocoa keys** are deliberately not emulated, except Ctrl+W (delete word). Ctrl+E, Ctrl+D, Ctrl+K and Ctrl+P are app commands; Home, End and Delete cover their usual editing meanings.
 - **Flow control.** Raw mode disables XON/XOFF, so Ctrl+Q and Ctrl+S reach the app; the test matrix verifies this.
