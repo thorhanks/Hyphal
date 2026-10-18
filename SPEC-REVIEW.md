@@ -422,3 +422,5 @@ Answers to the open calls raised by this review. Applied to `SPEC.md` in later c
 | P1 | Root node | 3.8 | A fixed row with `parent_id` NULL, ID in `meta`, shown as "Home" at the start of every breadcrumb. Can't be renamed, deleted, moved, completed or starred; no page. |
 | P2 | Markdown dialect | 3.2, 3.14, 5.4 | One GFM-style dialect for export, import, paste and the editor round trip: `- [ ]`, `- [x]`, `- ## heading`, optional ` ^id`. A completed non-task re-imports as a task (documented). |
 | P3 | JSON import | 3.14 | Refuses a non-empty database. `--replace` snapshots then replaces; `--under <id>` imports as new nodes. |
+| V1 | Indent guides | 5.10 | Off by default; a setting turns them on. |
+| V2 | Density | 5.9 | Comfortable by default; compact is a setting. |
