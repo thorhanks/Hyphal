@@ -208,7 +208,6 @@ The full keymap is in §6.4. The conventions it follows:
 
 - `?` in block selection, or F1 anywhere, shows every command with its key, as lazygit, Impala and BlueTUI do.
 - Esc backs out one level and never zooms out: overlay → where you were; page edit → page view → outline; text editing → block selection → clear filter → nothing (a hint). Zooming out is always explicit.
-- Block selection accepts Vim motions (`h` `j` `k` `l`, `gg`, `G`), matching Omarchy's Neovim-first setup.
 - There are no side panes. Backlinks is a floating overlay like the palettes; Esc closes it.
 - Ctrl+Q quits from anywhere. Pending typing is flushed first, so there is never anything to save.
 
@@ -264,7 +263,6 @@ Phase 1 needs these screens besides the outline and the page view. Later-phase s
 
 - **Text editing (default).** Printable keys type. Commands use modifiers.
 - **Block selection.** Esc selects the current bullet as a whole. Up/Down move the selection; Shift+Up/Down extend it across siblings only. Single keys act on the selection (§6.4). Enter or `a` returns to text editing with the cursor at the end of the bullet, `i` at the start. Other printable keys do nothing except show a hint, so text typed after Esc never runs commands by surprise.
-- Block selection accepts Vim-style motions by default (§4.7) because they are single keys. Full Vim-style modal editing is not offered (§12.1).
 
 ### 5.2 Enter
 
@@ -492,10 +490,10 @@ This section is the only place key bindings are defined. Other sections name com
 | Bold / italic | Ctrl+B / Ctrl+I | Alt+B inside tmux (whose prefix is Ctrl+B) / Alt+I (Ctrl+I equals Tab) |
 | Color picker | Alt+C | Esc `c` |
 | Toggle complete | Ctrl+Enter | Esc `x` |
-| Move subtree up / down | Ctrl+Shift+Up / Down | Esc `K` / `J` |
-| Collapse / expand | Ctrl+Up / Ctrl+Down | Esc `h` / `l` |
+| Move subtree up / down | Ctrl+Shift+Up / Down | Same |
+| Collapse / expand | Ctrl+Up / Ctrl+Down | Esc `-` / `+` |
 | Zoom in / out | Alt+Right / Alt+Left | Esc `z` / `Z` |
-| Zoom to root | Alt+Home | Esc `gh` |
+| Zoom to root | Alt+Home | Esc Home |
 | Expand to level 1–9 | Alt+1 … Alt+9 | Esc `1` … `9` |
 | Open page (page zoom) | Alt+Down, Shift+Enter | Alt+Down, Esc `p`. Without the kitty protocol Shift+Enter arrives as Enter |
 | Follow the tag or link under the cursor | Alt+Enter | Same (see the Alt rule below); click in Phase 2 |
@@ -509,16 +507,14 @@ This section is the only place key bindings are defined. Other sections name com
 
 | Key | Command |
 | --- | --- |
-| Up / Down, `j` / `k` | Move the selection |
+| Up / Down | Move the selection |
 | Shift+Up / Shift+Down | Extend the selection across siblings |
-| `gg` / `G` | First / last visible bullet |
-| `h` / `l` | Collapse / expand |
-| `H` / `L` | Collapse / expand all descendants |
+| `-` / `+` (or `=`) | Collapse / expand |
+| `_` / `*` | Collapse / expand all descendants |
 | `1` … `9` | Expand to level N |
-| `J` / `K` | Move subtree down / up |
 | Tab / Shift+Tab | Indent / outdent |
 | `z` / `Z` | Zoom in / out |
-| `gh` | Zoom to root |
+| Home | Zoom to root |
 | Enter, `a` / `i` | Return to text editing, cursor at the end / start |
 | `x` | Toggle complete |
 | `t` | Toggle task |
@@ -542,9 +538,9 @@ This section is the only place key bindings are defined. Other sections name com
 
 | Key | Command |
 | --- | --- |
-| Up / Down, `j` / `k` | Scroll by line |
+| Up / Down | Scroll by line |
 | Space, Page Down / Page Up | Scroll by screen |
-| `gg` / `G` | Top / bottom |
+| Home / End | Top / bottom |
 | Tab / Shift+Tab | Focus next / previous link |
 | Enter | Follow the focused link; with no link focused, edit |
 | `e` | Edit: `$EDITOR` in Phase 1, the built-in editor from Phase 2 |
@@ -556,7 +552,7 @@ This section is the only place key bindings are defined. Other sections name com
 
 **Overlays:** typing filters the list; Up/Down or Ctrl+N/Ctrl+P move (inside an overlay Ctrl+P moves up instead of reopening the palette); Enter chooses; Esc closes. In the color picker, `1`–`8` choose a color directly.
 
-**Trash view** (§4.8): Up/Down or `j`/`k` move; Enter previews the deletion; `r` restores it; `d` purges it after confirmation; Esc returns to the outline.
+**Trash view** (§4.8): Up/Down move; Enter previews the deletion; `r` restores it; `d` purges it after confirmation; Esc returns to the outline.
 
 **Terminal rules**
 
@@ -573,7 +569,7 @@ This section is the only place key bindings are defined. Other sections name com
 - Keymap is configurable in TOML, per context. The same duplicate check runs when the config loads; on a conflict the app keeps the default binding for that command and shows a banner.
 - A test matrix covers Ghostty, Kitty, Alacritty, foot and WezTerm on Linux, and Ghostty, Kitty, Alacritty, WezTerm, iTerm2 and Terminal.app on macOS, each bare and inside tmux, recording which bindings arrive intact.
 
-**macOS keyboard:** by default, macOS terminals send special characters (å, ∫) for Option+key instead of Alt, so every Alt binding has an Esc-based fallback, and on first run on macOS the app shows a one-line hint explaining how to set Option to act as Meta (Alt). macOS also intercepts Ctrl+Up/Down (Mission Control, App Exposé) and Ctrl+Left/Right (Spaces) by default; the same hint mentions this, and `h`/`l` in block selection always work. How Option+Left/Right (word movement in most Mac apps) arrives in each terminal is recorded in the test matrix. Apple's Terminal.app is treated as ANSI-only; Ghostty, kitty, WezTerm, Alacritty and iTerm2 are fully supported.
+**macOS keyboard:** by default, macOS terminals send special characters (å, ∫) for Option+key instead of Alt, so every Alt binding has an Esc-based fallback, and on first run on macOS the app shows a one-line hint explaining how to set Option to act as Meta (Alt). macOS also intercepts Ctrl+Up/Down (Mission Control, App Exposé) and Ctrl+Left/Right (Spaces) by default; the same hint mentions this, and `-`/`+` in block selection always work. How Option+Left/Right (word movement in most Mac apps) arrives in each terminal is recorded in the test matrix. Apple's Terminal.app is treated as ANSI-only; Ghostty, kitty, WezTerm, Alacritty and iTerm2 are fully supported.
 
 ### 6.5 Mouse
 
@@ -1056,7 +1052,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 - No `@person` mentions and no board (kanban) view in V1.
 - No mirrors (one bullet shown live in two places). Every node has exactly one parent; links, tags and saved queries cover the need.
 - No daily journal or Today node, and no page-based model: everything lives in the one tree, and a page (§5.7) is an optional attachment to a bullet.
-- No Vim-style modal editing; block selection accepts Vim motions, and that is all.
+- No Vim-style modal editing or Vim motions.
 - No accounts, subscription, cloud backend or database server.
 - No rich-text or WYSIWYG editing; formatting is Markdown-style markup, rendered with concealment.
 - No real-time multi-writer collaboration.
