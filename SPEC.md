@@ -1,4 +1,4 @@
-# Terminal Infinite Outliner — Project Specification v3
+# Hyphal — Project Specification v3
 
 Oct 15, 2026 · @Thor
 
@@ -10,7 +10,7 @@ We are building a local-first, terminal-native infinite outliner in Go, inspired
 
 **Pitch:** An infinite outline for your terminal: one tree, unlimited depth, stored in one open, durable file you can always export.
 
-**Status:** Concept / pre-implementation. Working name TBD, written `<app>` in this spec. The name appears only in user-facing places: the binary, data and config directory names, the window class, and the comment or header that marks an export. It never appears in the schema, operations, the sync log format or JSON field names, so renaming the app later only means moving directories.
+**Status:** Concept / pre-implementation. The app is named **Hyphal**; the binary, directories and window class use `hyphal`. The name appears only in user-facing places: the binary, data and config directory names, the window class, and the comment or header that marks an export. It never appears in the schema, operations, the sync log format or JSON field names, so renaming the app later only means moving directories.
 
 ## 2. Product principles
 
@@ -31,10 +31,10 @@ We are building a local-first, terminal-native infinite outliner in Go, inspired
 **Core scenarios:**
 
 1. **Session.** Launch from a shell and type immediately. Enter adds bullets, Tab nests them. Collapse a project, zoom into a task, filter for a word, quit.
-2. **Quick capture.** From any shell (`app add "Call the dentist"`) or a Hyprland keybind (`app capture --window`), text lands in the Inbox node without opening the full TUI.
+2. **Quick capture.** From any shell (`hyphal add "Call the dentist"`) or a Hyprland keybind (`hyphal capture --window`), text lands in the Inbox node without opening the full TUI.
 3. **Edit in `$EDITOR`.** Press a key to open the current subtree as Markdown in `$EDITOR` (Neovim on Omarchy). Save and quit; the changes apply as one undoable step.
 4. **Recover.** A week later, restore a deleted branch from the Trash, or revert one bad change made by a script without touching anything else.
-5. **Leave.** `app export --format markdown` produces a readable outline that works anywhere, at any time.
+5. **Leave.** `hyphal export --format markdown` produces a readable outline that works anywhere, at any time.
 
 **Comparison set** (evaluate hands-on before Phase 1 ends):
 
@@ -221,7 +221,7 @@ The full keymap is in §6.4. The conventions it follows:
 **Native app integration**
 
 - On Linux, ships a `.desktop` entry and its own window class, so it launches from the app launcher like Omarchy's other terminal apps and can be targeted by Hyprland window rules. On macOS it is launched from a terminal; there is no app bundle in V1.
-- **Capture window:** `app capture --window` starts a new terminal window running `app capture` with its own class, which a window rule makes small and floating. The terminal command is a config template; the default uses `xdg-terminal-exec` with the class option of Omarchy's default terminal. Inside, type one line and press Enter: it lands in the Inbox, and the window closes. Plain `app capture` does the same in the current terminal. The docs suggest a Super binding, checked against Omarchy's defaults.
+- **Capture window:** `hyphal capture --window` starts a new terminal window running `hyphal capture` with its own class, which a window rule makes small and floating. The terminal command is a config template; the default uses `xdg-terminal-exec` with the class option of Omarchy's default terminal. Inside, type one line and press Enter: it lands in the Inbox, and the window closes. Plain `hyphal capture` does the same in the current terminal. The docs suggest a Super binding, checked against Omarchy's defaults.
 - Desktop notifications only for things that need attention, such as a failed snapshot: through the standard notification daemon on Linux, and through `terminal-notifier` on macOS when installed (otherwise none).
 
 **Restraint**
@@ -339,7 +339,7 @@ Identity follows the merge rule above: the current bullet keeps its ID, and the 
 - **Complete / reopen** toggles a node's completion (storage rule: §7.2). Completed nodes stay in place; a toggle hides them. On a selection with mixed state, any open bullet means "complete all", otherwise "reopen all". When a newly completed bullet hides, the cursor moves to the next visible bullet and a message offers undo.
 - **Editing under a filter:** a bullet you create or edit stays visible until the filter changes, even if it doesn't match. Indent and move use the real tree, including hidden bullets; the moved bullet stays visible with its ancestors.
 - **Tasks:** toggle task makes a bullet a task, shown with a checkbox (§4.3). Completing a task checks its box.
-- **Leading markers convert.** Typing `[ ] ` at the start of a bullet makes it a task, `[x] ` a completed task, and `## ` a heading-style bullet; the marker is removed. Text set by paste, import, the editor round trip or `app edit --text` follows the same rule, so stored bullet text never starts with a marker and the Markdown dialect needs no escape for them.
+- **Leading markers convert.** Typing `[ ] ` at the start of a bullet makes it a task, `[x] ` a completed task, and `## ` a heading-style bullet; the marker is removed. Text set by paste, import, the editor round trip or `hyphal edit --text` follows the same rule, so stored bullet text never starts with a marker and the Markdown dialect needs no escape for them.
 - **Duplicate** copies the subtree as the next sibling, with new IDs, pages, completion, task and heading state. Stars are not copied, and links inside the copy still point to their original targets.
 - **Heading style:** toggle heading makes a bullet a section-like heading (§4.6). It changes only the look, never the structure.
 - **Move to…** opens a fuzzy parent picker over all node text, built on the command palette (Phase 1). From Phase 2 it uses the jump palette, with starred locations first. This is how subtrees cross long distances.
@@ -371,7 +371,7 @@ Identity follows the merge rule above: the current bullet keeps its ID, and the 
 - Typing coalesces into one step per node, closed by a 2-second pause, leaving the node, or any structural action.
 - Undo restores cursor and selection position, recorded with each change set. Undoing a change outside the current zoom zooms to show it, with a message.
 - **Undo survives restarts.** Ctrl+Z after reopening the app continues where you left off.
-- Ctrl+Z undoes change sets you started from the TUI, including `$EDITOR` round trips and page saves made from it. Changes from the CLI or an agent are never undone by Ctrl+Z, so you never undo something you didn't do; they are reverted with `app revert` (Phase 1) or from the History view (Phase 2).
+- Ctrl+Z undoes change sets you started from the TUI, including `$EDITOR` round trips and page saves made from it. Changes from the CLI or an agent are never undone by Ctrl+Z, so you never undo something you didn't do; they are reverted with `hyphal revert` (Phase 1) or from the History view (Phase 2).
 
 ### 5.7 Pages
 
@@ -468,10 +468,10 @@ Formatting uses Markdown-style markers, typed directly or wrapped around selecte
   - A stripped ID makes the line a new node and sends the old one to the Trash. The summary message makes this visible, and undo reverses it.
   - Only a trailing ` ^` followed by a valid ID (§7.2) is an ID; any other `^` is text.
 - Pages are not part of the file. Each bullet keeps its page through its ID; pages are edited on their own (§5.7).
-- The temp file lives in a private directory (`$XDG_RUNTIME_DIR/<app>/`, or `<app>/tmp/` in the data directory, mode `0700`) and is created `0600`. Editors may keep their own swap and undo files elsewhere; the docs say so.
+- The temp file lives in a private directory (`$XDG_RUNTIME_DIR/hyphal/`, or `hyphal/tmp/` in the data directory, mode `0700`) and is created `0600`. Editors may keep their own swap and undo files elsewhere; the docs say so.
 - If a bullet in the subtree changes from another connection while the editor is open, the concurrency rule of §7.3 applies on save: your edit lands after the other change, which stays revertible, and the message says so.
 - If the file can't be parsed, nothing is applied: the temp file is kept and a banner offers to reopen it.
-- **Quick capture** (Phase 1): `app add "text" [--under <node>]` (§10.2) appends to the Inbox node by default, in its own transaction. The Inbox is a top-level node named `Inbox`, created on first use; its ID is stored in `meta`, so it can be renamed or moved freely and capture follows it. If the Inbox is in the Trash or has been purged, capture creates a new top-level `Inbox`, points `meta` at it, and says so; a trashed old Inbox stays in the Trash untouched. A running TUI notices the change through SQLite's `PRAGMA data_version` and refreshes.
+- **Quick capture** (Phase 1): `hyphal add "text" [--under <node>]` (§10.2) appends to the Inbox node by default, in its own transaction. The Inbox is a top-level node named `Inbox`, created on first use; its ID is stored in `meta`, so it can be renamed or moved freely and capture follows it. If the Inbox is in the Trash or has been purged, capture creates a new top-level `Inbox`, points `meta` at it, and says so; a trashed old Inbox stays in the Trash untouched. A running TUI notices the change through SQLite's `PRAGMA data_version` and refreshes.
 
 ### 6.4 Keymap and terminal support
 
@@ -618,21 +618,21 @@ The outline lives in one SQLite database, which is the only source of truth. Sna
 
 ```text
 Data directory
-  Linux:  ~/.local/share/<app>/            (honors XDG_DATA_HOME)
-  macOS:  ~/Library/Application Support/<app>/
+  Linux:  ~/.local/share/hyphal/            (honors XDG_DATA_HOME)
+  macOS:  ~/Library/Application Support/hyphal/
 
   outline.db          # the data (WAL mode)
   snapshots/          # automatic backups (§8.5)
   exports/            # default target for scheduled export
 
 Config (both platforms, CLI convention)
-  ~/.config/<app>/config.toml              (honors XDG_CONFIG_HOME)
+  ~/.config/hyphal/config.toml              (honors XDG_CONFIG_HOME)
 
 Sync folder (Phase 5, user-chosen, e.g. inside iCloud Drive or Syncthing)
-  <sync-folder>/<app>/<device-id>.log      # §7.6
+  <sync-folder>/hyphal/<device-id>.log      # §7.6
 ```
 
-Separate outlines are separate database files, selected with `--db` or a config default. `app paths` prints every location in use.
+Separate outlines are separate database files, selected with `--db` or a config default. `hyphal paths` prints every location in use.
 
 ### 7.2 Schema (sketch)
 
@@ -715,7 +715,7 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 - The TUI keeps an in-memory tree for rendering; all writes go through `core` to `store`.
 - The CLI opens its own connection with a busy timeout. The TUI polls `PRAGMA data_version` about every 500 ms and reloads changed nodes.
 - **Change detection.** `data_version` only says that something changed. Every write transaction, including those that write no history (Trash and history purges, imports, restores), increments `meta.write_counter`. When `data_version` changes, the TUI reads the change sets newer than the last one it has seen and reloads the nodes their ops name. If `write_counter` advanced by more than those change sets account for, it reloads the whole tree.
-- **Concurrent edits to one node.** Every write bumps the node's `version`. If another connection changes a node while the TUI has an open (unsealed) typing operation on it, the TUI seals that operation at once and starts a new one, so an in-place update never overwrites the other write or records a stale `before` value. If another connection changes a node while the TUI holds uncommitted typing on it, the user's typing is never dropped: it commits as a new change set after the other change, which stays in history and can be reverted, and a message says so. A CLI or agent that must not overwrite newer work passes `--if-version <n>` and gets a conflict error instead. The same rule applies to a page open in `$EDITOR` while `app page set` runs.
+- **Concurrent edits to one node.** Every write bumps the node's `version`. If another connection changes a node while the TUI has an open (unsealed) typing operation on it, the TUI seals that operation at once and starts a new one, so an in-place update never overwrites the other write or records a stale `before` value. If another connection changes a node while the TUI holds uncommitted typing on it, the user's typing is never dropped: it commits as a new change set after the other change, which stays in history and can be reverted, and a message says so. A CLI or agent that must not overwrite newer work passes `--if-version <n>` and gets a conflict error instead. The same rule applies to a page open in `$EDITOR` while `hyphal page set` runs.
 
 ### 7.4 Migrations
 
@@ -735,7 +735,7 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 - JSON export never contains the `device_id`, the config file or snapshots. An import always keeps the receiving installation's own `device_id`.
 - Every export records the app and the export time without breaking its format: a top-level `exported_by` field in JSON, `<head>` elements in OPML (after the `<?xml` declaration), and an HTML comment on the first line of Markdown, which importers skip.
 - Exports are written atomically (temp file, then rename).
-- **Scheduled export** is an optional setting: Markdown or JSON, daily or on quit, into a folder you choose (for example a Git repo), keeping the last N exports. There is no daemon: a daily export runs on quit, or at launch if it is overdue. `app export --scheduled` runs it from a systemd timer, launchd or cron.
+- **Scheduled export** is an optional setting: Markdown or JSON, daily or on quit, into a folder you choose (for example a Git repo), keeping the last N exports. There is no daemon: a daily export runs on quit, or at launch if it is overdue. `hyphal export --scheduled` runs it from a systemd timer, launchd or cron.
 - CI checks that database → JSON → database is identical: every exported field is equal, including IDs, positions, timestamps, pages, stars and view state, and history when exported with `--history`.
 
 **Markdown dialect.** Export, import, multi-line paste (§5.5) and the editor round trip (§6.3) share one dialect, close to GitHub-flavored Markdown:
@@ -751,7 +751,7 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 
 - Bullet text never starts with `[ ] `, `[x] ` or `## ` (§5.4), so those markers are unambiguous.
 - Inline markup is written as stored (§5.8). Export converts color tags to `<span style="color: …">`; the editor round trip and copy (§5.5) keep them as typed.
-- The ` ^id` suffix is written by the editor round trip and by `app export --ids`. Only the editor round trip maps IDs back to existing nodes; Markdown import always creates new nodes and ignores the suffix.
+- The ` ^id` suffix is written by the editor round trip and by `hyphal export --ids`. Only the editor round trip maps IDs back to existing nodes; Markdown import always creates new nodes and ignores the suffix.
 - A completed bullet that is not a task exports as `[x]` and re-imports as a completed task. This small loss is documented; JSON and the editor round trip (through `^id`) keep it exact.
 - Import accepts any consistent indentation (spaces or tabs) and `-`, `*`, `+` or numbered list markers. Lines that aren't list items become bullets.
 
@@ -807,9 +807,9 @@ Multi-device sync ships in Phase 5, and an iPhone app is a separate follow-up pr
 - Each device writes an acknowledgment watermark; logs are compacted once every known device has merged past a point.
 - Merged remote changes appear in history with source `sync:<device>`, and a Sync view lists recent ones by device.
 - **Device identity.** The `device_id` is also written to a small `device` file in the data directory. If the database's ID doesn't match it (the database was copied from another machine), the app generates a new `device_id` before writing anything.
-- **Retired devices** would block compaction forever; `app sync forget-device <id>` removes one from the watermark calculation.
+- **Retired devices** would block compaction forever; `hyphal sync forget-device <id>` removes one from the watermark calculation.
 - **Snapshot restore with sync on** applies the difference between the current state and the snapshot as one change set (source `restore`), so other devices receive it and it can be reverted. A full restore (§8.5) is reserved for corruption recovery, after which the device takes a new `device_id` and merges every log again.
-- Compaction, `app history purge` and Trash purges are local and never touch the logs; Forget node is the only erasure that syncs (§8.4).
+- Compaction, `hyphal history purge` and Trash purges are local and never touch the logs; Forget node is the only erasure that syncs (§8.4).
 - Convergence tests run with skewed simulated clocks until the HLC drift policy is decided (§12.3).
 
 ## 8. Safety, history and recovery
@@ -858,14 +858,14 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 - **Before and after values** make every operation reversible by applying its inverse.
 - **Change sets** group the operations of one action: a subtree move, a CLI command, an editor round trip. They are the unit of undo, revert and "what did this agent do?".
 - **Coalescing:** consecutive edits to one node's text form a single operation. While open, that operation's row is updated in place at each commit (about every second, §7.3). It is **sealed** by a 2-second pause, leaving the node, a structural action, or quitting. Sealed operations are never changed, and only sealed operations are written to the sync log.
-- **Append-only:** history is never rewritten, except by explicit erasure: compaction, `app history purge` and Forget node (§8.4).
+- **Append-only:** history is never rewritten, except by explicit erasure: compaction, `hyphal history purge` and Forget node (§8.4).
 - **Revert** of an older change set applies its inverses to fields not changed since. Any skipped fields are reported, never overwritten.
 - **History view** (Phase 2): browse a node's past versions and restore one, or list change sets by time and source.
 
 ### 8.3 Trash
 
 - Deleting sets `deleted_at` and `deleted_by` (the deleting change set) on every node in the subtree; nothing is removed. The Trash view lists deletions, newest first.
-- **Leftovers stay out of sight.** The Trash view hides two kinds of deletion whose content isn't lost: bullets merged away by Backspace or Delete (§5.3–5.3a), whose text now lives in the survivor, and a single empty leaf with no page. They are still soft-deleted, purge by age like any other deletion, and are undoable through history; `app trash list --all` shows them.
+- **Leftovers stay out of sight.** The Trash view hides two kinds of deletion whose content isn't lost: bullets merged away by Backspace or Delete (§5.3–5.3a), whose text now lives in the survivor, and a single empty leaf with no page. They are still soft-deleted, purge by age like any other deletion, and are undoable through history; `hyphal trash list --all` shows them.
 - Restore brings back exactly one deletion: the nodes whose `deleted_by` matches. A child deleted separately earlier stays in the Trash.
 - A restored subtree returns to its original position among its siblings when that position still exists, otherwise to the end of its parent. If the parent is gone too, it goes under the nearest surviving ancestor, else the root, and the message says where. Sync uses the same rule (§7.6).
 - Items older than 30 days are purged for real (configurable). "Empty Trash" purges everything immediately, after a one-line confirmation.
@@ -875,7 +875,7 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 ### 8.4 Retention and erasure
 
 - Full history is kept for 90 days (configurable). After that, compaction squashes consecutive text and page edits made from the TUI into one operation per node per day. Structural change sets and change sets from the CLI, the editor round trip and agents are never compacted, so they can still be reviewed and reverted as a unit.
-- `app history purge --before <date>` removes older history.
+- `hyphal history purge --before <date>` removes older history.
 - **Forget node** erases a node from `nodes`, history and the search index, and writes a `forget` tombstone operation so the node cannot return from another device's sync log. Snapshots still contain it until they rotate out, and the command says so.
 - Expected growth is a few hundred KB per day of heavy use before compaction. This is an estimate to verify in Phase 0.
 
@@ -883,7 +883,7 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 
 - Taken with SQLite's online backup API: hourly while changes are happening, and before every migration or restore.
 - Retention: the last 48 hourly snapshots and 30 daily ones, within a size cap (default 1 GB). Over the cap, the oldest daily snapshots go first, then the oldest hourly ones, but the newest snapshot is always kept, even if it alone exceeds the cap. The first time the cap forces a drop, a message suggests raising `snapshots.max_size`.
-- `app snapshot list` lists them with their sizes; `app snapshot restore <name>` restores one after snapshotting the current state first, so a restore is itself reversible. With sync on, restore is applied as a change set instead (§7.6).
+- `hyphal snapshot list` lists them with their sizes; `hyphal snapshot restore <name>` restores one after snapshotting the current state first, so a restore is itself reversible. With sync on, restore is applied as a change set instead (§7.6).
 - Each snapshot is checked with `PRAGMA quick_check` after it is written; one that fails is deleted and reported. "Latest good snapshot" means the newest that passed.
 - A full restore never renames files over the database (with `-wal` and `-shm` files present that can corrupt it). It copies the snapshot into the live database with the online backup API. It refuses while a TUI holds the lock (§8.6). When the TUI offers a restore itself (after a failed integrity check), it closes its other connections first and reopens afterwards.
 
@@ -892,7 +892,7 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 - One TUI per database, enforced with an exclusive `flock` on a lock file next to the database (`outline.db.lock`). It is not an SQLite lock, so CLI writers are never blocked by it, and the kernel releases it if the TUI dies.
 - A second TUI opens read-only with a banner. It still follows changes through `PRAGMA data_version`; typing in it changes nothing and shows a hint.
 - **Takeover.** The read-only TUI retries the lock on its `data_version` tick. Once the lock is free, its banner changes to "Editing is available · Enter to edit"; pressing Enter takes the lock and switches to normal editing. Nothing changes without that keypress.
-- The CLI and `app capture` don't take the lock. They are ordinary writers with a 5-second busy timeout; past it they exit with a `busy` error code (§10.2). SQLite serializes the writes.
+- The CLI and `hyphal capture` don't take the lock. They are ordinary writers with a 5-second busy timeout; past it they exit with a `busy` error code (§10.2). SQLite serializes the writes.
 
 ## 9. Implementation
 
@@ -1011,42 +1011,42 @@ A robust CLI ships in **Phase 1**, for users, scripts and AI agents alike. It is
 Every `<node>` argument accepts an ID or a path.
 
 ```bash
-app add "Fix tooltip positioning" [--under <node>] [--after <node> | --before <node>]
-app capture [--window]             # one-line capture prompt (§4.7)
-app show <node> [--depth N] --json
-app tree [--root <node>] --json
-app search "tooltip #bug is:open" --json
-app edit <node> --text "New text" [--if-version N]
-app set <node> [--task | --no-task] [--heading | --no-heading]
-app move <node> --under <node> [--after <node> | --before <node> | --index N]
-app complete <node>      # and: reopen, star, unstar
-app delete <node>        # to Trash
-app forget <node>        # erase for good (§8.4); asks for --yes
-app trash list [--all]|restore <id>|empty   # <id>: the deleted subtree's top node
-app page get <node>      # Markdown to stdout
-app page set <node> --file page.md [--if-version N]   # or from stdin
-app page delete <node>
-app apply --file ops.json          # many operations as one change set
-app apply --schema                 # prints the ops.json JSON Schema
-app history list [--source agent:claude] --json
-app history purge --before <date>
-app revert <change-set-id>
-app export --format markdown|json|opml [--out <dir>] [--ids] [--history] [--split] [--scheduled]
-app import --format json|opml|markdown <file> [--under <node>] [--replace]
-app snapshot list|restore <name>
-app check                # integrity check (quick_check plus tree invariants)
-app paths
+hyphal add "Fix tooltip positioning" [--under <node>] [--after <node> | --before <node>]
+hyphal capture [--window]             # one-line capture prompt (§4.7)
+hyphal show <node> [--depth N] --json
+hyphal tree [--root <node>] --json
+hyphal search "tooltip #bug is:open" --json
+hyphal edit <node> --text "New text" [--if-version N]
+hyphal set <node> [--task | --no-task] [--heading | --no-heading]
+hyphal move <node> --under <node> [--after <node> | --before <node> | --index N]
+hyphal complete <node>      # and: reopen, star, unstar
+hyphal delete <node>        # to Trash
+hyphal forget <node>        # erase for good (§8.4); asks for --yes
+hyphal trash list [--all]|restore <id>|empty   # <id>: the deleted subtree's top node
+hyphal page get <node>      # Markdown to stdout
+hyphal page set <node> --file page.md [--if-version N]   # or from stdin
+hyphal page delete <node>
+hyphal apply --file ops.json          # many operations as one change set
+hyphal apply --schema                 # prints the ops.json JSON Schema
+hyphal history list [--source agent:claude] --json
+hyphal history purge --before <date>
+hyphal revert <change-set-id>
+hyphal export --format markdown|json|opml [--out <dir>] [--ids] [--history] [--split] [--scheduled]
+hyphal import --format json|opml|markdown <file> [--under <node>] [--replace]
+hyphal snapshot list|restore <name>
+hyphal check                # integrity check (quick_check plus tree invariants)
+hyphal paths
 ```
 
 - Core verbs on nodes are top-level; everything else is grouped by noun (`trash`, `page`, `history`, `snapshot`, and `sync` in Phase 5). Tag commands arrive with tags in Phase 2.
 - **Paths** are breadcrumb paths from Home, with `/` between segments: `Projects/ControllerCraft`. A literal `/` in a bullet's text is written `\/` (`Projects/2026\/10 review`). Segments match the bullet's text with markup stripped, exactly first, then case-insensitively. If a segment matches several siblings, the command fails with an `ambiguous` error listing the candidates and their IDs. Path lookups return the ID for later calls.
-- **`ops.json`** is a JSON array of operations, each `{"op": "<command>", ...arguments}`, using the same names and arguments as the commands above (`add`, `edit`, `set`, `move`, `complete`, `delete`, `page_set`, …). An operation can refer to a node added earlier in the batch by a temporary `"ref"`. `app apply --schema` prints the exact schema.
+- **`ops.json`** is a JSON array of operations, each `{"op": "<command>", ...arguments}`, using the same names and arguments as the commands above (`add`, `edit`, `set`, `move`, `complete`, `delete`, `page_set`, …). An operation can refer to a node added earlier in the batch by a temporary `"ref"`. `hyphal apply --schema` prints the exact schema.
 - **Output:** every command supports `--json`, with a stable, versioned envelope: `{"ok": true, "data": …}` or `{"ok": false, "error": {"code": "…", "message": "…", "candidates": [...]}}`. Human-readable output is the default. Export without `--out` writes a single-file format to stdout.
 - **Exit statuses:** 0 success, 1 other error, 2 usage error, 3 `not_found` or `ambiguous`, 4 `conflict` (`--if-version` mismatch), 5 `busy` (locked past the 5-second busy timeout, §8.6), 6 `read_only` (newer schema or failed integrity check).
 - Every write is one change set tagged with its source: `cli` by default, `--source agent:<name>` for agents, so their changes can be reviewed and reverted as a unit. The source is self-declared: it is for attribution, not a security boundary.
-- `app apply` lets an agent submit a batch of operations atomically; either all apply or none do.
+- `hyphal apply` lets an agent submit a batch of operations atomically; either all apply or none do.
 - Writes are safe while the TUI is open; the TUI picks them up within a second (§7.3).
-- The database is always explicit: `--db`, then the `<APP>_DB` environment variable, then the config default.
+- The database is always explicit: `--db`, then the `HYPHAL_DB` environment variable, then the config default.
 - **Phase 4:** an MCP server built on these commands, a shipped usage guide for agents, and richer query output.
 
 ## 11. Staged delivery plan
@@ -1135,10 +1135,10 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 | 42 | Feedback | No toasts: one footer row shows a message (until the next key), the filter query, or key hints | §4.5 |
 | 43 | Leading markers | `[ ] `, `[x] ` and `## ` at the start of a bullet always convert, so the dialect needs no escapes | §5.4, §7.5 |
 | 44 | Clipboard | Local platform tool first; OSC 52 over SSH or when no tool exists | §5.5 |
+| 45 | Name | Hyphal; `hyphal` for the binary, directories, window class and `HYPHAL_DB` | §1 |
 
 ### 12.3 Still open
 
-- **Project name and branding.** Where the name may appear is settled (§1); the name itself is not.
 - **Color palette size.** Eight named colors is the starting set; confirm against Omarchy themes that each stays legible on light and dark backgrounds.
 - **History retention defaults.** 90 days full, then daily, is a starting point; measure real growth in Phase 0.
 - **Sync details.** The direction is settled (§7.6). Open details: HLC drift handling, compaction thresholds, and whether page text later merges line by line.
@@ -1196,6 +1196,6 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 | `export.when` | `"daily"` | `daily` or `quit` | §7.5 |
 | `export.dir` | `<data dir>/exports` | Scheduled export folder | §7.5 |
 | `export.keep` | `10` | Scheduled exports kept | §7.5 |
-| `capture.terminal` | Omarchy default terminal via `xdg-terminal-exec` | Command template for `app capture --window` | §4.7 |
+| `capture.terminal` | Omarchy default terminal via `xdg-terminal-exec` | Command template for `hyphal capture --window` | §4.7 |
 
 - **Invalid config:** at launch, invalid keys fall back to their defaults and a banner names the file and line. On reload after "Edit settings", an invalid file is ignored entirely: the previous config stays in effect, with the same banner. Unknown keys produce a warning, not an error.
