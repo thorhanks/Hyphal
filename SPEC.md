@@ -15,7 +15,7 @@ We are building a local-first, terminal-native infinite outliner in Go, inspired
 ## 2. Product principles
 
 1. **One tree, no mandatory pages.** Any node can have children and can be zoomed into.
-2. **Thought-first editing.** Capturing and rearranging bullets needs no mode switch. Commands that need single keys use a lightweight block-selection state, not Vim modes. Block selection and page view/edit are modes in the strict sense; they are kept few, shallow, and always one Esc away from typing.
+2. **Thought-first editing.** Capturing and rearranging bullets needs no mode switch. Commands that need single keys use a lightweight block-selection state, not Vim modes. Block selection and page view/edit are modes in the strict sense; they are kept few and shallow: Esc always backs out one level, and Enter (or `a`/`i`) always returns to typing.
 3. **Your data is never locked in.** One SQLite file with a plain, documented schema, readable by standard tools. Export to Markdown, JSON or OPML at any time; a JSON export restores the whole outline, and its history too when exported with it.
 4. **Nothing is lost silently.** Every change is recorded in history, deletes go to the Trash, and snapshots protect against a damaged file.
 5. **Every change is attributable and reversible.** History records whether a change came from the TUI, the CLI, the editor round trip or an agent, and any change set can be reverted.
@@ -60,7 +60,7 @@ Our claimed difference: Workflowy-grade editing, in a terminal, with local data 
 | Esc block selection, multi-select, bulk move | Must | 1 | §5.1 |
 | Collapse, expand all, expand to level N | Must | 1 | §6.6 |
 | Complete, show / hide completed | Must | 1 | §5.4 |
-| Pages on bullets (replace Workflowy notes), optional first-line preview | Must | 1 | §5.7 |
+| Pages on bullets (replace Workflowy notes) | Must | 1 | §5.7 |
 | Inline formatting and text color | Must | 1 | §5.8 |
 | Duplicate node, Move to… | Must | 1 | §5.4, §6.6 |
 | Import from Workflowy (OPML) | Must | 1 | §7.5 |
@@ -123,8 +123,9 @@ Enter new · Tab indent · Esc select · Ctrl+P commands · F1 help
 
 - Completion never replaces the bullet glyph, so a completed parent still shows whether it is collapsed.
 - No information is carried by color alone.
-- Indent is 2 columns. Faint `│` indent guides are a setting, off by default. Past 8 levels, indentation compresses and the status line suggests zooming.
-- **Focus:** in text editing, the focused bullet shows the terminal cursor and its glyph in the accent color; nothing else changes. The optional page preview and concealed markers follow this focus.
+- Indent is 2 columns. Faint `│` indent guides are a setting, off by default. Past 8 levels of the current zoom, each further level indents by 1 column instead of 2, and the footer suggests zooming.
+- **Wrapped lines** continue under the start of the text, not under the glyph: continuation rows are indented past the bullet glyph and any checkbox, so each bullet reads as one block.
+- **Focus:** in text editing, the focused bullet shows the terminal cursor and its glyph in the accent color; nothing else changes. Concealed markers follow this focus. In block selection the terminal cursor is hidden.
 
 ### 4.4 Theme matching (Omarchy first)
 
@@ -141,11 +142,16 @@ Enter new · Tab indent · Esc select · Ctrl+P commands · F1 help
 
 - **Header:** breadcrumb left; database name (the file name without `.db`) and save indicator right.
 - **Save indicator:** nothing when saved; `●` while a coalesced edit is not yet committed (at most about 1 second); a red label if a write fails.
-- **Footer:** contextual key hints, dismissible via config. F1 (or `?` in block selection) opens the full help overlay (§4.8).
-- **Toasts:** one line, auto-dismissing, for undoable actions: `Moved "Design notes" and 214 descendants to Trash · Ctrl+Z`.
-- **Banners:** persistent, for failed writes, a database opened read-only, or a restore that just ran.
+- **Screen layout,** top to bottom, all inside the reading column:
+  1. **Header row:** breadcrumb left; database name and save indicator right.
+  2. **Banner row,** only while a banner is active (below).
+  3. A blank row, then the outline (or page, or full-screen view).
+  4. **Footer row,** the last row of the terminal. It shows one of three things, in priority order: a message, the filter query while a filter is active (`/ tooltip · 12 matches`), or contextual key hints.
+- **Footer hints:** contextual keys for the current state; the `footer` setting turns them off (messages and the filter still use the row). F1 (or `?` in block selection) opens the full help overlay (§4.8).
+- **Messages** are the app's only transient feedback; nothing floats and nothing times out. A message replaces the footer's content and stays until the next keypress, then the footer returns to what it showed before. Messages confirm undoable actions (`Moved "Design notes" and 214 descendants to Trash · Ctrl+Z undoes`), summarize an editor round trip, say where a restore landed, report a clipboard failure, and explain a no-op key ("hints" elsewhere in this spec are messages). A newer message replaces an older one.
+- **Banners:** persistent, for failed writes, a database opened read-only, a restore that just ran, or an invalid config. A banner stays until its cause is gone; an informational one (a restore that just ran) clears on the next change to the outline.
 - **Views on demand:** Trash (§4.8) and History open as temporary full-screen views, not panels. No sidebar, no daily journal.
-- **First run:** create the database with a short sample outline that teaches the core keys.
+- **First run:** the first time the TUI opens a database (a flag in `meta`), it adds a short sample outline that teaches the core keys, unless the outline already holds anything besides an Inbox (for example after an import). Databases created by the CLI start with only Home, so scripts and agents get a clean outline.
 
 ### 4.6 Visual design
 
@@ -155,18 +161,19 @@ The outline should read like a calm page, not a terminal dashboard.
 - **Inline formatting rendered, markers concealed.** `**bold**` shows as bold; the markers appear only on the bullet being edited, as in Obsidian's live preview (§5.8).
 - **Typographic hierarchy:**
   - Optional heading bullets: bold, with extra space above, for section-like nodes.
-  - A bullet with a page shows a dim page marker after its text (a Nerd Font document glyph on Omarchy, ≡ elsewhere). With the optional preview turned on, the page's first line appears dimmed beneath the focused bullet.
+  - A bullet with a page shows a dim page marker after its text (a Nerd Font document glyph on Omarchy, ≡ elsewhere). There is no page preview in the outline; zoom into the page to read it.
   - Muted breadcrumbs and footer; full-strength color only for text you wrote.
-  - Tags as colored chips from the theme palette (§5.9).
+  - Tags as colored text ("chips") from the theme palette, never filled backgrounds, so they stay readable on light themes (§5.9).
 - **Stability and motion:**
   - Scroll margin of 3 rows; the cursor never sits on the screen edge.
   - The cursor row stays fixed on screen when collapsing or expanding.
   - No flicker: only changed cells are redrawn.
   - Optional, very brief zoom transition, off by default.
-- **Density modes:** *comfortable* (the default: a blank line between the top-level siblings of the current zoom) and *compact*.
+- **Density modes:** *comfortable* (the default: a blank line between the top-level siblings of the current zoom) and *compact*. A heading-style bullet always gets one blank line above it (none when it is the first row under the zoom heading); this blank line is not added to the density blank line, so there is never more than one blank row in a row.
 - **Glyph sets:** Nerd Font set by default on Omarchy, Unicode elsewhere, ASCII when the locale isn't UTF-8 (`LC_ALL`, `LC_CTYPE`, `LANG`) or the config says so.
 - **Truecolor** is used only when `COLORTERM` is `truecolor` or `24bit`; inside tmux the docs explain enabling the `RGB` feature. Otherwise the app stays with the 16 ANSI colors.
 - **Concealed markers** appear only on the focused bullet. When they reflow its line, the bullet's first row stays fixed on screen.
+- **Light or dark:** on Omarchy, the theme's light/dark marker decides. Elsewhere the app asks the terminal for its background color (OSC 11) at launch; a terminal that doesn't answer is treated as dark, and a `background` setting (`auto`, `light`, `dark`) overrides both.
 - **Contrast:** muted text must stay readable on light themes. In truecolor the app keeps muted text at a contrast ratio of at least 3:1 against the background; in 16-color mode it uses bright black rather than dim on light themes.
 - **Narrow terminals:** below 40 columns or 10 rows the app shows only "Terminal too small" with the current size. Below the column cap, the reading column fills the width.
 - **Color tokens.** UI code uses semantic roles, never raw colors:
@@ -174,7 +181,7 @@ The outline should read like a calm page, not a terminal dashboard.
   | Role | Used for | 16-color mode | Omarchy palette (layer 2) |
   | --- | --- | --- | --- |
   | `text` | Bullet and page text | Default foreground | Theme foreground |
-  | `muted` | Breadcrumbs, footer, page marker, preview, completed text | Bright black, or dim (see Contrast) | Theme muted color |
+  | `muted` | Breadcrumbs, footer, page marker, completed text | Bright black, or dim (see Contrast) | Theme muted color |
   | `accent` | Focused glyph, overlay borders, page headings in edit mode | Blue | Theme accent |
   | `selection` | Block selection, palette highlight | Reverse video | Theme selection background |
   | `match` | Filter and search matches | Yellow, underlined | Theme highlight |
@@ -232,17 +239,17 @@ The full keymap is in §6.4. The conventions it follows:
   ▾ Development
     • Inventory navigation                    ← completed: dimmed, struck
     • Improve controller mappings  #input     ← tag chip in theme color
-    • Fix tooltip positioning  ≡
-      Clips at the right edge on 1080p        ← page preview (optional)
+    • Fix tooltip positioning  ≡              ← has a page
+
   ▸ Design notes
 
-                                      ? help · ^P commands · ^K jump
+                                      ? help · Ctrl+P commands · Ctrl+K jump
 ```
 
 ```text
              ╭─ Commands ─────────────────────────────╮
              │ › col                                  │
-             │   Color bullet…                 Esc c  │
+             │   Color…                        Esc c  │
              │   Collapse all                         │
              │   Expand to level…           Esc 1–9   │
              ╰────────────────────────────────────────╯
@@ -252,9 +259,9 @@ The full keymap is in §6.4. The conventions it follows:
 
 Phase 1 needs these screens besides the outline and the page view. Later-phase screens are listed in §12.3.
 
-- **Trash view** (full screen, §8.3): one row per deletion, newest first: the deleted bullet's text, its former breadcrumb, the descendant count and the age. Enter previews the subtree read-only; `r` restores; `d` purges that deletion after a one-line confirmation (the only confirmation in the app, because purging is final); Esc returns to the outline.
+- **Trash view** (full screen, §8.3): one row per deletion, newest first: the deleted bullet's text, its former breadcrumb, the descendant count and the age. Enter previews the subtree read-only; `r` restores; `d` purges that deletion after a one-line confirmation (purging is final, so purge and Empty Trash are the only actions in the app that ask for confirmation); Esc returns to the outline.
 - **Help overlay** (F1, `?`): every command in the current context with its key, generated from the keymap (§6.4), filterable by typing.
-- **Color picker** (`c` in block selection, or the command palette): an overlay listing the eight colors as swatches with their names, plus "No color". `1`–`8` or arrows and Enter choose; Esc cancels.
+- **Color picker** (`c` in block selection, or the command palette): an overlay listing the eight colors as swatches with their names, plus "No color". `1`–`8` (and `0` for No color) or arrows and Enter choose; Esc cancels.
 - **Read-only mode** (newer schema, failed integrity check, or a second TUI): a persistent banner says why; everything works except changes, and any editing key shows a hint instead.
 
 ## 5. Editing behavior
@@ -288,7 +295,7 @@ Rows are checked top to bottom; the first match applies.
 | With a text selection | Delete the selected text only |
 | No previous visible bullet, or the cursor is at the start of the zoom heading | No-op |
 | Bullet is empty, no children | Delete it; cursor to the end of the previous visible bullet (or the zoom heading) |
-| Bullet is empty, has children | No-op; status line hints to use Esc then Delete |
+| Bullet is empty, has children | No-op; a message hints to use Esc then Delete |
 | The previous visible bullet is the zoom heading | No-op. Nothing is ever merged into the zoom heading |
 | Both bullets have a page | No-op with a hint. Merging would have to combine two pages |
 | Bullet has text, no children | Merge text into the end of the previous visible bullet |
@@ -328,10 +335,11 @@ Identity follows the merge rule above: the current bullet keeps its ID, and the 
   - Moving B's first child up makes it the last child of A (A expands if collapsed). If B is the first sibling (there is no A), the child moves up one level and becomes B's previous sibling.
   - Moving A's last child down makes it the first child of B, mirroring the rule above.
   - Nothing moves outside the current zoom; at its edges, moving is a no-op.
-- **Delete a subtree** (Backspace, Delete or `d` in block selection) never asks for confirmation. It shows an undo toast with the descendant count.
-- **Complete / reopen** toggles a node's completion (storage rule: §7.2). Completed nodes stay in place; a toggle hides them. On a selection with mixed state, any open bullet means "complete all", otherwise "reopen all". When a newly completed bullet hides, the cursor moves to the next visible bullet and a toast offers undo.
+- **Delete a subtree** (Backspace, Delete or `d` in block selection) never asks for confirmation. It shows an undo message with the descendant count.
+- **Complete / reopen** toggles a node's completion (storage rule: §7.2). Completed nodes stay in place; a toggle hides them. On a selection with mixed state, any open bullet means "complete all", otherwise "reopen all". When a newly completed bullet hides, the cursor moves to the next visible bullet and a message offers undo.
 - **Editing under a filter:** a bullet you create or edit stays visible until the filter changes, even if it doesn't match. Indent and move use the real tree, including hidden bullets; the moved bullet stays visible with its ancestors.
-- **Tasks:** toggle task makes a bullet a task, shown with a checkbox (§4.3). Typing `[ ] ` at the start of a bullet does the same and removes the marker. Completing a task checks its box.
+- **Tasks:** toggle task makes a bullet a task, shown with a checkbox (§4.3). Completing a task checks its box.
+- **Leading markers convert.** Typing `[ ] ` at the start of a bullet makes it a task, `[x] ` a completed task, and `## ` a heading-style bullet; the marker is removed. Text set by paste, import, the editor round trip or `app edit --text` follows the same rule, so stored bullet text never starts with a marker and the Markdown dialect needs no escape for them.
 - **Duplicate** copies the subtree as the next sibling, with new IDs, pages, completion, task and heading state. Stars are not copied, and links inside the copy still point to their original targets.
 - **Heading style:** toggle heading makes a bullet a section-like heading (§4.6). It changes only the look, never the structure.
 - **Move to…** opens a fuzzy parent picker over all node text, built on the command palette (Phase 1). From Phase 2 it uses the jump palette, with starred locations first. This is how subtrees cross long distances.
@@ -344,27 +352,35 @@ Identity follows the merge rule above: the current bullet keeps its ID, and the 
   - Cursor mid-text: the bullet is split first (§5.2), and the subtree goes between the two halves.
   - Empty bullet: the subtree replaces it.
   - In block selection: inserted as siblings after the selection.
-- Copy (block selection) writes the selected bullets and their descendants to the system clipboard as indented Markdown in the shared dialect: text with inline markup, task, completion and heading markers. Pages and IDs are not copied. Cut copies, then deletes to the Trash, so cut and paste moves text only: the original bullets go to the Trash with their pages, and the pasted bullets are new. To copy a subtree with its pages, use Duplicate (§5.4); to move one intact, use Move to….
-- **Clipboard transport:** OSC 52 first. Fallbacks: `wl-copy` (Wayland), `xclip` or `xsel` (X11), `pbcopy` (macOS). If none works, a toast says so.
+- Copy (block selection) writes the selected bullets and their descendants to the system clipboard as indented Markdown in the shared dialect: text with inline markup, task, completion and heading markers. Pages and IDs are not copied. Cut copies, then deletes to the Trash.
+- **Cut and paste is a move.** The app remembers its last cut. If the clipboard still holds exactly the text that cut wrote, paste restores the cut bullets at the paste position instead of creating new ones: same IDs, pages, stars and history, as one change set (the cut and the move both stay undoable). Text pasted from anywhere else, or after the clipboard changed, creates new bullets as above. To copy a subtree with its pages, use Duplicate (§5.4).
+- **Clipboard transport:** in a local session, the platform tool first: `wl-copy` (Wayland), `xclip` or `xsel` (X11), `pbcopy` (macOS). These report failure, so a failed copy shows a message. Over SSH (`SSH_TTY` set), or when no local tool exists, the app uses OSC 52, which works through SSH and tmux but gives no reply, so its failures can't be detected; the docs explain tmux's `set-clipboard on`.
 
 ### 5.6 Undo and redo
 
 - Undo is driven by history (§8.2). Each change set is one undo step. Undo applies the inverse of your newest undoable change set (see the last point) not yet undone, as a new change set whose `undo_of` points at it; redo undoes that undo. The undo position is derived from history, so it needs no extra state.
 - Any new change set from the TUI clears the redo steps.
+- **Deriving the undo position.** Consider only TUI-started change sets, newest first, as a stack walk:
+  - An undo (`undo_of` = X) cancels X: skip both. A redo is an undo of an undo, so it cancels that undo and X becomes live again.
+  - **Undo** targets the newest live change set that is not itself an undo.
+  - **Redo** is available only while the newest TUI change set is an undo; it undoes that undo.
+  - Change sets from other sources are not in the walk; they matter only through the revert rule below.
+  - Example: A, B (TUI edits) → undo B (U1) → undo A (U2) → redo (R1, undoes U2, so A is live) → CLI change C → Ctrl+Z undoes A again (U3), skipping C's fields if C touched them. Redo is now available (newest TUI set is U3); a new TUI edit D would clear it.
+- Ctrl+Z first seals any open typing operation, so the typing just done is the step undone.
 - If a later change from another source (CLI, agent, sync) touched the same fields, undo follows the revert rule: those fields are skipped and reported (§8.2).
 - Typing coalesces into one step per node, closed by a 2-second pause, leaving the node, or any structural action.
-- Undo restores cursor and selection position, recorded with each change set. Undoing a change outside the current zoom zooms to show it, with a toast.
+- Undo restores cursor and selection position, recorded with each change set. Undoing a change outside the current zoom zooms to show it, with a message.
 - **Undo survives restarts.** Ctrl+Z after reopening the app continues where you left off.
 - Ctrl+Z undoes change sets you started from the TUI, including `$EDITOR` round trips and page saves made from it. Changes from the CLI or an agent are never undone by Ctrl+Z, so you never undo something you didn't do; they are reverted with `app revert` (Phase 1) or from the History view (Phase 2).
 
 ### 5.7 Pages
 
 - **Every bullet stays one line.** Long-form writing lives on an optional **page** attached to the bullet: a full Markdown document with headings, lists, code blocks, quotes and tables, as long as you like.
-- **Page zoom:** `p` in block selection (also Shift+Enter with the kitty protocol) opens the bullet's page in view mode; on a bullet without one, it opens an empty page in edit mode (`$EDITOR` in Phase 1). A page saved empty is not created; clearing an existing page's text deletes the page, as one undoable change. Esc from view mode returns to the outline with the cursor where it was. Normal zoom (`z`) still shows only the bullet's children.
+- **Page zoom:** `p` in block selection (also Shift+Enter with the kitty protocol) opens the bullet's page in view mode; on a bullet without one, it opens an empty page in edit mode (`$EDITOR` in Phase 1). A page saved empty is not created; clearing an existing page's text deletes the page, as one undoable change. Esc from view mode returns to the outline in block selection on the page's bullet. Normal zoom (`z`) still shows only the bullet's children.
 - **Title:** the bullet's text is the page title. It is not stored in `pages.markdown`; view mode renders it as the page heading, with inline markup.
-  - In `$EDITOR` and in edit mode, the title appears as a first line `# Title`. Changing that line renames the bullet. Deleting it leaves the bullet's text unchanged.
+  - In `$EDITOR` and in edit mode, the title appears as a first line `# Title`. On save, the first line is the title if it is an H1 (`# …`): changing it renames the bullet. If the first line is not an H1, the bullet's text is unchanged and the whole file is the page. (So deleting the title line of a page whose body starts with `# Intro` renames the bullet to "Intro"; undo reverses it.)
   - **Delete page** (command palette) removes the page from a bullet, as one undoable change.
-- **Indicator and preview:** a dim page marker follows the bullet's text. An optional setting, off by default, shows the page's first non-empty line dimmed beneath the focused bullet (§4.6).
+- **Indicator:** a dim page marker follows the bullet's text (§4.6). The outline never shows page content; zoom into the page to read it.
 - **Two modes, no live preview.** Editing inside rendered output is the hardest and buggiest part of a Markdown editor, so pages separate reading from writing:
   - **View mode** renders the Markdown read-only: headings, lists, quotes, tables, and code blocks syntax-highlighted with the theme palette. It scrolls, and Tab moves between links; Enter on the focused `[[link]]` zooms to its target.
   - **Edit mode** is a plain multi-line text editor showing the Markdown exactly as typed. Syntax highlighting keeps it pleasant without concealment: headings bold in the accent color, markers dimmed, code blocks tinted, links underlined. It shares the outline's wrap-layout and cursor engine.
@@ -392,7 +408,7 @@ Formatting uses Markdown-style markers, typed directly or wrapped around selecte
 | Italic | `*text*` | `*` |
 | Strikethrough | `~~text~~` | `~` twice |
 | Inline code | `` `text` `` | `` ` `` |
-| Link (URL) | `[label](https://…)` | — |
+| Link (URL) | `[label](https://…)` | — (rendered as the label, an OSC 8 hyperlink where the terminal supports it; `o` in block selection opens it) |
 | Highlight | `==text==` | `=` twice |
 | Text color | `<red>text</red>` | — (Color… in the command palette) |
 
@@ -413,7 +429,7 @@ Formatting uses Markdown-style markers, typed directly or wrapped around selecte
 ### 5.9 Tags (Phase 2)
 
 - `#tag` anywhere in a bullet or page. Letters, digits, `-`, `_` and `/` are allowed; `/` makes nested tags (`#project/lighthouse`), as in Obsidian.
-- Tags render as colored chips. Each tag gets a stable color from the palette, overridable in config.
+- Tags render as colored text (chips, §4.6). Each tag gets a stable color from the palette, overridable in config.
 - `o` in block selection, or a click (Phase 2), sets the in-place filter to the bullet's tag. Enter never follows a tag; it always edits. Typing `#` offers completion from existing tags.
 - A tag list in the command palette shows every tag with its count.
 
@@ -434,7 +450,8 @@ Formatting uses Markdown-style markers, typed directly or wrapped around selecte
   - `is:complete`, `is:open` (not completed, any bullet), `is:task` (open or done), `has:page`, `is:starred`; `is:task is:open` finds open tasks
   - `#tag` (includes nested tags), `changed:7d`, `created:2026-10`
   - `"exact phrase"`, `-word` to exclude, terms combined with AND by default, `OR` between terms
-- Case-insensitive substring matching by default, ignoring diacritics. FTS5 with the `trigram` tokenizer serves queries of three or more characters; shorter queries scan the in-memory tree. Phase 0 verifies Unicode case folding, diacritics and the 50 ms target at 100,000 nodes with the chosen driver.
+- **Search sees what you see.** Matching and highlighting run on the markup-stripped text (concealed markers removed, links shown as their display text), so `**bold** text` matches "bold text" and highlights map directly onto the rendered row. The FTS index stores this stripped text.
+- Case-insensitive substring matching by default, ignoring diacritics. FTS5 with the `trigram` tokenizer serves queries of three or more characters; shorter queries scan the in-memory tree. The in-memory tree holds page text too, loaded in the background after the first frame (so launch stays fast), so short and long queries both search pages. Phase 0 verifies Unicode case folding, diacritics and the 50 ms target at 100,000 nodes with the chosen driver.
 - Trashed nodes never match.
 - A match inside a page keeps its bullet visible with the page marker highlighted, and shows the matching line dimmed beneath it.
 - Saved queries arrive in Phase 3 (§10.1).
@@ -442,22 +459,23 @@ Formatting uses Markdown-style markers, typed directly or wrapped around selecte
 ### 6.3 External editor and quick capture
 
 - **Edit in `$EDITOR`** (Phase 1): writes the focused bullet's subtree (or the selection, or the whole zoom when the zoom heading is focused) to a temp Markdown file in the shared dialect (§7.5), suspends the TUI and opens `$EDITOR`. Each line carries its node's ID as a ` ^id` suffix so edits map back.
-- On exit, the file is parsed and diffed against the subtree. Everything applies as one change set with source `editor`, undoable with Ctrl+Z, and a toast summarizes it ("3 changed, 2 new, 1 to Trash").
+- The file always contains every live descendant, whatever is collapsed, hidden by Show / hide completed, or hidden by an active filter. A line missing from the file therefore always means "delete this node", never "it wasn't shown".
+- On exit, the file is parsed and diffed against the subtree. Everything applies as one change set with source `editor`, undoable with Ctrl+Z, and a message summarizes it ("3 changed, 2 new, 1 to Trash").
   - Changed text, task, completion or heading markers update their nodes. Order and indentation in the file become the new structure, so moving lines moves nodes.
   - Lines without an ID become new nodes. Removed lines move to the Trash, with their pages, stars and history intact.
   - Deleting a parent line but keeping its children: the children take the place the indentation in the file gives them.
   - A duplicated ID: the first line keeps the node; later copies become new nodes.
-  - A stripped ID makes the line a new node and sends the old one to the Trash. The summary toast makes this visible, and undo reverses it.
+  - A stripped ID makes the line a new node and sends the old one to the Trash. The summary message makes this visible, and undo reverses it.
   - Only a trailing ` ^` followed by a valid ID (§7.2) is an ID; any other `^` is text.
 - Pages are not part of the file. Each bullet keeps its page through its ID; pages are edited on their own (§5.7).
 - The temp file lives in a private directory (`$XDG_RUNTIME_DIR/<app>/`, or `<app>/tmp/` in the data directory, mode `0700`) and is created `0600`. Editors may keep their own swap and undo files elsewhere; the docs say so.
-- If a bullet in the subtree changes from another connection while the editor is open, the concurrency rule of §7.3 applies on save: your edit lands after the other change, which stays revertible, and the toast says so.
+- If a bullet in the subtree changes from another connection while the editor is open, the concurrency rule of §7.3 applies on save: your edit lands after the other change, which stays revertible, and the message says so.
 - If the file can't be parsed, nothing is applied: the temp file is kept and a banner offers to reopen it.
-- **Quick capture** (Phase 1): `app add "text" [--under <node>]` (§10.2) appends to the Inbox node by default, in its own transaction. The Inbox is a top-level node named `Inbox`, created on first use; its ID is stored in `meta`, so it can be renamed or moved freely and capture follows it. A running TUI notices the change through SQLite's `PRAGMA data_version` and refreshes.
+- **Quick capture** (Phase 1): `app add "text" [--under <node>]` (§10.2) appends to the Inbox node by default, in its own transaction. The Inbox is a top-level node named `Inbox`, created on first use; its ID is stored in `meta`, so it can be renamed or moved freely and capture follows it. If the Inbox is in the Trash or has been purged, capture creates a new top-level `Inbox`, points `meta` at it, and says so; a trashed old Inbox stays in the Trash untouched. A running TUI notices the change through SQLite's `PRAGMA data_version` and refreshes.
 
 ### 6.4 Keymap and terminal support
 
-This section is the only place key bindings are defined. Other sections name commands and may mention their keys, but this table wins. In code the keymap is data, one table per context, and a test fails if a key is bound twice in one context, a command has no binding that works without the kitty keyboard protocol, or a default binding outside word editing uses Alt.
+This section is the only place key bindings are defined. Other sections name commands and may mention their keys, but this table wins. In code the keymap is data, one table per context, and a test fails if a key is bound twice in one context, a command has no binding that works without the kitty keyboard protocol, a bullet command has no single key in block selection, or a default binding outside word editing uses Alt.
 
 **Contexts:** global, text editing, block selection, filter input, page view, page edit (Phase 2), overlays (palettes, pickers, help, backlinks) and the Trash view. The Esc chain moves between them (§4.7).
 
@@ -472,6 +490,7 @@ This section is the only place key bindings are defined. Other sections name com
 | Command palette | Ctrl+P | |
 | Jump palette (Phase 2) | Ctrl+K | |
 | Undo / redo | Ctrl+Z / Ctrl+Y | Ctrl+Shift+Z also redoes, with the kitty protocol |
+| (Save) | Ctrl+S | Nothing to save; shows "Saved automatically" |
 
 **Text editing** (the default state). Commands without a chord here are in block selection: Esc, then the key.
 
@@ -510,18 +529,20 @@ This section is the only place key bindings are defined. Other sections name com
 | `_` / `*` | Collapse / expand all descendants |
 | `1` … `9` | Expand to level N |
 | Tab / Shift+Tab | Indent / outdent |
+| `[` / `]` | Move subtree up / down (also Ctrl+Shift+Up / Down) |
 | `z` / `Z` | Zoom in / out |
-| Home | Zoom to root |
+| `~` | Zoom to root |
 | Enter, `a` / `i` | Return to text editing, cursor at the end / start |
 | `x` | Toggle complete |
 | `t` | Toggle task |
 | `#` | Toggle heading style |
-| Backspace, Delete, `d` | Delete to the Trash, with an undo toast |
+| Backspace, Delete, `d` | Delete to the Trash, with an undo message |
 | `y`, Ctrl+C | Copy as Markdown (§5.5) |
 | Ctrl+X | Cut: copy, then delete to the Trash |
 | `p` | Open page |
-| `o` | Follow the bullet's link or tag; with several, a picker lists them |
+| `o` | Follow the bullet's link or tag; with several, a picker lists them. A URL opens in the default browser (`xdg-open` on Linux, `open` on macOS) |
 | `e` | Open subtree in `$EDITOR` |
+| `D` | Duplicate subtree (also Ctrl+D) |
 | `c` | Color picker |
 | `s` | Toggle star (Phase 2) |
 | `m` | Move to… (§5.4) |
@@ -546,11 +567,11 @@ This section is the only place key bindings are defined. Other sections name com
 | `e` | Edit: `$EDITOR` in Phase 1, the built-in editor from Phase 2 |
 | `E` (Phase 2) | Open in `$EDITOR` |
 | `s` (Phase 2) | Toggle split view |
-| Esc | Back to the outline, cursor where it was |
+| Esc | Back to the outline, in block selection on the page's bullet |
 
 **Page edit** (Phase 2): the text-editing keys for movement, selection, clipboard and wrapping. Enter inserts a newline, Tab inserts two spaces, and Esc returns to view mode.
 
-**Overlays:** typing filters the list; Up/Down or Ctrl+N/Ctrl+P move (inside an overlay Ctrl+P moves up instead of reopening the palette); Enter chooses; Esc closes. In the color picker, `1`–`8` choose a color directly.
+**Overlays:** typing filters the list; Up/Down or Ctrl+N/Ctrl+P move (inside an overlay Ctrl+P moves up instead of reopening the palette); Enter chooses; Esc closes. In the color picker, `1`–`8` choose a color directly and `0` removes it.
 
 **Trash view** (§4.8): Up/Down move; Enter previews the deletion; `r` restores it; `d` purges it after confirmation; Esc returns to the outline.
 
@@ -558,7 +579,7 @@ This section is the only place key bindings are defined. Other sections name com
 
 - **Kitty keyboard protocol.** The app enables it through Bubble Tea when available. Only Ctrl+Enter, Shift+Enter and Ctrl+Shift+Z need it (without it they arrive as Enter, Enter and Ctrl+Z), and each is an alternative to a key that works everywhere.
 - **No Alt commands.** Legacy terminals and tmux send Alt+key as Esc then the key, and macOS terminals send special characters for Option+key unless Option is set as Meta, so the app binds Alt only for word editing. An Alt+key that arrives as Esc then the key simply runs that key in block selection.
-- **Word-editing exception.** A quick Esc followed by `b`, `f` or Backspace (what Option+Left/Right/Backspace send in many macOS terminals, and Alt in others) is read as word left, word right or delete word, not as block selection. A slow Esc then Backspace still deletes the subtree. The keymap test lists these three sequences and fails on any new one.
+- **Word-editing exception.** A quick Esc followed by `b`, `f` or Backspace (what Option+Left/Right/Backspace send in many macOS terminals, and Alt in others) is read as word left, word right or delete word, not as block selection. A slow Esc then Backspace still deletes the subtree; the docs explain this timing, and undo covers a mistake. The keymap test lists these three sequences and fails on any new one.
 - **Bare Esc** is recognised after Bubble Tea's escape timeout; the kitty protocol removes that wait.
 - **tmux.** The docs recommend `set -s escape-time 10` and `set -s extended-keys on` (with the `extkeys` terminal feature) and ship the snippet.
 - **Readline keys.** The editing keys that macOS terminals send for Cmd and Option combinations are supported on both platforms: Ctrl+A, Ctrl+E, Ctrl+U, Ctrl+W and Esc `b`/`f`. Other readline keys are not emulated: Ctrl+D, Ctrl+K and Ctrl+P are app commands.
@@ -618,7 +639,7 @@ Separate outlines are separate database files, selected with `--db` or a config 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
 -- schema_version, format_id (neutral, never the app name), device_id,
--- root_id, inbox_id, a one-paragraph description of the schema
+-- root_id, inbox_id, write_counter (§7.3), tui_opened (§4.5), a one-paragraph description of the schema
 
 CREATE TABLE nodes (
   id           TEXT PRIMARY KEY,     -- random, stable forever: 12 chars, lowercase base32
@@ -659,7 +680,7 @@ CREATE TABLE view_state (           -- per device; not in history or sync
 );
 
 CREATE TABLE ui_state (              -- per device; not in history or sync
-  key   TEXT PRIMARY KEY,            -- show_completed, zoom, cursor:<zoom-id>, palette_recent
+  key   TEXT PRIMARY KEY,            -- show_completed (default true), zoom, cursor:<zoom-id>, palette_recent
   value TEXT NOT NULL                -- JSON
 );
 
@@ -693,7 +714,8 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 - WAL mode with `synchronous=FULL`. The extra cost is negligible at this write rate.
 - The TUI keeps an in-memory tree for rendering; all writes go through `core` to `store`.
 - The CLI opens its own connection with a busy timeout. The TUI polls `PRAGMA data_version` about every 500 ms and reloads changed nodes.
-- **Concurrent edits to one node.** Every write bumps the node's `version`. If another connection changes a node while the TUI holds uncommitted typing on it, the user's typing is never dropped: it commits as a new change set after the other change, which stays in history and can be reverted, and a toast says so. A CLI or agent that must not overwrite newer work passes `--if-version <n>` and gets a conflict error instead. The same rule applies to a page open in `$EDITOR` while `app page set` runs.
+- **Change detection.** `data_version` only says that something changed. Every write transaction, including those that write no history (Trash and history purges, imports, restores), increments `meta.write_counter`. When `data_version` changes, the TUI reads the change sets newer than the last one it has seen and reloads the nodes their ops name. If `write_counter` advanced by more than those change sets account for, it reloads the whole tree.
+- **Concurrent edits to one node.** Every write bumps the node's `version`. If another connection changes a node while the TUI has an open (unsealed) typing operation on it, the TUI seals that operation at once and starts a new one, so an in-place update never overwrites the other write or records a stale `before` value. If another connection changes a node while the TUI holds uncommitted typing on it, the user's typing is never dropped: it commits as a new change set after the other change, which stays in history and can be reverted, and a message says so. A CLI or agent that must not overwrite newer work passes `--if-version <n>` and gets a conflict error instead. The same rule applies to a page open in `$EDITOR` while `app page set` runs.
 
 ### 7.4 Migrations
 
@@ -705,10 +727,11 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 
 | Format | Export | Import |
 | --- | --- | --- |
-| JSON | Lossless: every node including the Trash, pages, stars, collapse and UI state; IDs, positions and timestamps. History with `--history` | Into an empty database only. `--replace` snapshots the database, then replaces its contents. `--under <node>` imports as new nodes with new IDs instead |
-| Markdown | The shared dialect below; one file, or one file per top-level node; pages as separate files | New nodes under a chosen parent |
+| JSON | Lossless: every node including the Trash, pages, stars, collapse and UI state; IDs, positions and timestamps. History with `--history` | Into an empty database only; on a non-empty one (including the first-run sample outline) the error names `--replace`. `--replace` snapshots the database, then replaces its contents. `--under <node>` imports as new nodes with new IDs instead |
+| Markdown | The shared dialect below; one file (`outline.md`, the default) or, with `--split`, one file per top-level node; pages as separate files in `pages/` | New nodes under a chosen parent |
 | OPML | Workflowy-compatible (mapping below) | New nodes under a chosen parent (for migrating from Workflowy and other outliners) |
 
+- **Markdown and OPML imports** without `--under` land in one new top-level bullet named after the imported file (`workflowy-export.opml`), so the whole import can be inspected, moved or trashed as a unit. With `--under`, the imported top-level items become children of that node directly.
 - JSON export never contains the `device_id`, the config file or snapshots. An import always keeps the receiving installation's own `device_id`.
 - Every export records the app and the export time without breaking its format: a top-level `exported_by` field in JSON, `<head>` elements in OPML (after the `<?xml` declaration), and an HTML comment on the first line of Markdown, which importers skip.
 - Exports are written atomically (temp file, then rename).
@@ -723,9 +746,10 @@ CREATE INDEX node_tags_by_tag ON node_tags(tag);
 - [x] Completed task
 - ## Heading-style bullet
   - Child, indented two spaces
-- Bullet text with its ID ^k3j9x2
+- Bullet text with its ID ^k3j9x2m4q7tb
 ```
 
+- Bullet text never starts with `[ ] `, `[x] ` or `## ` (§5.4), so those markers are unambiguous.
 - Inline markup is written as stored (§5.8). Export converts color tags to `<span style="color: …">`; the editor round trip and copy (§5.5) keep them as typed.
 - The ` ^id` suffix is written by the editor round trip and by `app export --ids`. Only the editor round trip maps IDs back to existing nodes; Markdown import always creates new nodes and ignores the suffix.
 - A completed bullet that is not a task exports as `[x]` and re-imports as a completed task. This small loss is documented; JSON and the editor round trip (through `^id`) keep it exact.
@@ -784,7 +808,7 @@ Multi-device sync ships in Phase 5, and an iPhone app is a separate follow-up pr
 - Merged remote changes appear in history with source `sync:<device>`, and a Sync view lists recent ones by device.
 - **Device identity.** The `device_id` is also written to a small `device` file in the data directory. If the database's ID doesn't match it (the database was copied from another machine), the app generates a new `device_id` before writing anything.
 - **Retired devices** would block compaction forever; `app sync forget-device <id>` removes one from the watermark calculation.
-- **Snapshot restore with sync on** applies the difference between the current state and the snapshot as one change set (source `restore`), so other devices receive it and it can be reverted. Swapping the file is reserved for corruption recovery, after which the device takes a new `device_id` and merges every log again.
+- **Snapshot restore with sync on** applies the difference between the current state and the snapshot as one change set (source `restore`), so other devices receive it and it can be reverted. A full restore (§8.5) is reserved for corruption recovery, after which the device takes a new `device_id` and merges every log again.
 - Compaction, `app history purge` and Trash purges are local and never touch the logs; Forget node is the only erasure that syncs (§8.4).
 - Convergence tests run with skewed simulated clocks until the HLC drift policy is decided (§12.3).
 
@@ -827,6 +851,7 @@ CREATE INDEX ops_by_node ON ops(node_id);
 CREATE INDEX ops_by_change_set ON ops(change_set_id);
 -- move carries one location field: {parent_id, position} (§7.6)
 -- edit_page with before = null creates a page; with after = null deletes it
+-- a delete made by a merge (§5.3) records the survivor: after = {deleted: true, merged_into: <id>}
 ```
 
 - **Current state is authoritative;** history is a record beside it, written in the same transaction. Nothing is rebuilt by replay.
@@ -840,11 +865,12 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 ### 8.3 Trash
 
 - Deleting sets `deleted_at` and `deleted_by` (the deleting change set) on every node in the subtree; nothing is removed. The Trash view lists deletions, newest first.
+- **Leftovers stay out of sight.** The Trash view hides two kinds of deletion whose content isn't lost: bullets merged away by Backspace or Delete (§5.3–5.3a), whose text now lives in the survivor, and a single empty leaf with no page. They are still soft-deleted, purge by age like any other deletion, and are undoable through history; `app trash list --all` shows them.
 - Restore brings back exactly one deletion: the nodes whose `deleted_by` matches. A child deleted separately earlier stays in the Trash.
-- A restored subtree returns to its original position among its siblings when that position still exists, otherwise to the end of its parent. If the parent is gone too, it goes under the nearest surviving ancestor, else the root, and the toast says where. Sync uses the same rule (§7.6).
-- Items older than 30 days are purged for real (configurable). "Empty Trash" purges immediately.
+- A restored subtree returns to its original position among its siblings when that position still exists, otherwise to the end of its parent. If the parent is gone too, it goes under the nearest surviving ancestor, else the root, and the message says where. Sync uses the same rule (§7.6).
+- Items older than 30 days are purged for real (configurable). "Empty Trash" purges everything immediately, after a one-line confirmation.
 - Purging deletes the node rows with their pages, stars, tags and view state. History ops that mention them stay until history retention removes them; reverting one reports the node as gone. Purging is local: each device purges its own Trash by age, and purges are not synced.
-- After a delete the cursor moves to the next sibling, else the previous one, else the parent. The toast names the bullet and counts its descendants.
+- After a delete the cursor moves to the next sibling, else the previous one, else the parent. The message names the bullet and counts its descendants.
 
 ### 8.4 Retention and erasure
 
@@ -856,14 +882,16 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 ### 8.5 Snapshots
 
 - Taken with SQLite's online backup API: hourly while changes are happening, and before every migration or restore.
-- Retention: the last 48 hourly snapshots and 30 daily ones, within a size cap (default 1 GB) that drops the oldest daily snapshots first.
+- Retention: the last 48 hourly snapshots and 30 daily ones, within a size cap (default 1 GB). Over the cap, the oldest daily snapshots go first, then the oldest hourly ones, but the newest snapshot is always kept, even if it alone exceeds the cap. The first time the cap forces a drop, a message suggests raising `snapshots.max_size`.
 - `app snapshot list` lists them with their sizes; `app snapshot restore <name>` restores one after snapshotting the current state first, so a restore is itself reversible. With sync on, restore is applied as a change set instead (§7.6).
-- A file-swap restore never replaces the file under a live connection: it refuses while a TUI holds the lock (§8.6). When the TUI offers a restore itself (after a failed integrity check), it closes its connection first and reopens afterwards.
+- Each snapshot is checked with `PRAGMA quick_check` after it is written; one that fails is deleted and reported. "Latest good snapshot" means the newest that passed.
+- A full restore never renames files over the database (with `-wal` and `-shm` files present that can corrupt it). It copies the snapshot into the live database with the online backup API. It refuses while a TUI holds the lock (§8.6). When the TUI offers a restore itself (after a failed integrity check), it closes its other connections first and reopens afterwards.
 
 ### 8.6 Locking
 
 - One TUI per database, enforced with an exclusive `flock` on a lock file next to the database (`outline.db.lock`). It is not an SQLite lock, so CLI writers are never blocked by it, and the kernel releases it if the TUI dies.
 - A second TUI opens read-only with a banner. It still follows changes through `PRAGMA data_version`; typing in it changes nothing and shows a hint.
+- **Takeover.** The read-only TUI retries the lock on its `data_version` tick. Once the lock is free, its banner changes to "Editing is available · Enter to edit"; pressing Enter takes the lock and switches to normal editing. Nothing changes without that keypress.
 - The CLI and `app capture` don't take the lock. They are ordinary writers with a 5-second busy timeout; past it they exit with a `busy` error code (§10.2). SQLite serializes the writes.
 
 ## 9. Implementation
@@ -873,13 +901,14 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 | Area | Choice | Notes |
 | --- | --- | --- |
 | Language | Go | Simple, fast to compile, one static binary; well suited to agent-driven development |
-| UI framework | Bubble Tea (v2 if released) | Elm-style update/view loop; v2 brings kitty keyboard protocol support. Confirm release status in Phase 0 |
-| Styling and layout | Lip Gloss | Theme-driven styles; rendered rows cached per bullet |
-| Components | Bubbles (viewport, list) | Palettes and page view. The outline editor and the page edit mode are custom, sharing one wrap-layout and cursor engine (§9.3); Bubbles' text area can't share it |
+| UI framework | Bubble Tea v2 (`charm.land/bubbletea/v2`) | Elm-style update/view loop; v2 brings kitty keyboard protocol support and the new renderer. Released; pin the latest v2 minor in Phase 0 |
+| Styling and layout | Lip Gloss v2 | Theme-driven styles; rendered rows cached per bullet |
+| Components | Bubbles v2 (viewport, list) | Palettes and page view. The outline editor and the page edit mode are custom, sharing one wrap-layout and cursor engine (§9.3); Bubbles' text area can't share it |
 | CLI | Cobra | Shared by quick capture, scripting and agents |
 | Database | Pure-Go SQLite driver (`modernc.org/sqlite` or `ncruces/go-sqlite3`) | No C toolchain, so cross-builds for Linux and macOS stay simple. Confirm FTS5 with the `trigram` tokenizer and the online backup API when choosing |
 | Text | `rivo/uniseg` | Grapheme segmentation and display width from one library, so the cursor and rendering never disagree on CJK and emoji |
 | Markdown | goldmark | Page rendering, with source positions for mode switching |
+| Syntax highlighting | chroma | Code blocks in page view, styled from the theme palette |
 | Fuzzy matching | A Go fuzzy-finder library such as `sahilm/fuzzy` | Jump and command palettes |
 | Import / export | `encoding/json`, `encoding/xml`, small list parser | JSON, OPML, Markdown; the parser also serves the editor round trip |
 | Config | TOML (`BurntSushi/toml` or `pelletier/go-toml`) | Platform paths per §7.1 |
@@ -993,7 +1022,7 @@ app move <node> --under <node> [--after <node> | --before <node> | --index N]
 app complete <node>      # and: reopen, star, unstar
 app delete <node>        # to Trash
 app forget <node>        # erase for good (§8.4); asks for --yes
-app trash list|restore <id>|empty   # <id>: the deleted subtree's top node
+app trash list [--all]|restore <id>|empty   # <id>: the deleted subtree's top node
 app page get <node>      # Markdown to stdout
 app page set <node> --file page.md [--if-version N]   # or from stdin
 app page delete <node>
@@ -1002,7 +1031,7 @@ app apply --schema                 # prints the ops.json JSON Schema
 app history list [--source agent:claude] --json
 app history purge --before <date>
 app revert <change-set-id>
-app export --format markdown|json|opml [--out <dir>] [--ids] [--history] [--scheduled]
+app export --format markdown|json|opml [--out <dir>] [--ids] [--history] [--split] [--scheduled]
 app import --format json|opml|markdown <file> [--under <node>] [--replace]
 app snapshot list|restore <name>
 app check                # integrity check (quick_check plus tree invariants)
@@ -1098,13 +1127,20 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 | 34 | CLI shape | Core verbs top-level, the rest grouped by noun; `--json` envelope and fixed exit codes | §10.2 |
 | 35 | Look | Comfortable density, no indent guides by default; semantic color tokens | §4.6 |
 | 36 | Mirrors | Never; the outline stays a strict tree, and links, tags and saved queries cover multi-context items | §12.1 |
+| 37 | Cut and paste | Pasting the app's own last cut moves the bullets intact (IDs, pages, history) | §5.5 |
+| 38 | Page preview | None in the outline; zoom into the page to read it | §5.7 |
+| 39 | Trash contents | Merge leftovers and empty leaves are hidden from the Trash view | §8.3 |
+| 40 | Block-selection keys | Every bullet command has a single key: `[`/`]` move, `D` duplicate, `~` zoom to root | §6.4 |
+| 41 | Markdown export layout | One `outline.md` plus `pages/` by default; `--split` for one file per top-level node | §7.5 |
+| 42 | Feedback | No toasts: one footer row shows a message (until the next key), the filter query, or key hints | §4.5 |
+| 43 | Leading markers | `[ ] `, `[x] ` and `## ` at the start of a bullet always convert, so the dialect needs no escapes | §5.4, §7.5 |
+| 44 | Clipboard | Local platform tool first; OSC 52 over SSH or when no tool exists | §5.5 |
 
 ### 12.3 Still open
 
 - **Project name and branding.** Where the name may appear is settled (§1); the name itself is not.
 - **Color palette size.** Eight named colors is the starting set; confirm against Omarchy themes that each stays legible on light and dark backgrounds.
 - **History retention defaults.** 90 days full, then daily, is a starting point; measure real growth in Phase 0.
-- **Default Markdown export layout.** One file, or one file per top-level node.
 - **Sync details.** The direction is settled (§7.6). Open details: HLC drift handling, compaction thresholds, and whether page text later merges line by line.
 
 **Open questions by phase.** Each must be settled before its phase starts, as part of that phase's plan.
@@ -1129,7 +1165,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 5. **Reference mockups:** the five screens listed in §4.6, reviewed side by side with Workflowy and with lazygit and btop under three Omarchy themes, one of them light.
 6. **Keymap matrix:** record which bindings arrive in each terminal, bare and in tmux, before finalizing §6.4, including how Option+Left/Right/Backspace and Cmd+Left/Right arrive on macOS and that macOS leaves Ctrl+Shift+Up/Down alone.
 7. **Workflowy import:** run a real Workflowy OPML export through the importer and list anything lost, including how mirrors appear and whether they can be detected.
-8. **Stack checks:** confirm Bubble Tea v2 status and its keyboard-protocol support, and choose the pure-Go SQLite driver after verifying FTS5 (trigram tokenizer) and the online backup API; measure fuzzy matching over 100,000 nodes.
+8. **Stack checks:** confirm Bubble Tea v2's keyboard-protocol support in the terminal matrix and that `teatest` (or a v2 equivalent) works with v2, and choose the pure-Go SQLite driver after verifying FTS5 (trigram tokenizer) and the online backup API; measure fuzzy matching over 100,000 nodes.
 9. **Sync-readiness test:** two simulated devices exchange operation logs in random order and converge (§9.5), before any sync UI exists.
 10. **Implementation plan:** turn this spec into the phased, agent-ready plan, with acceptance criteria per feature (§9.6).
 
@@ -1144,8 +1180,8 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 | `density` | `"comfortable"` | `comfortable` or `compact` | §4.6 |
 | `indent_guides` | `false` | Faint `│` guides | §4.3 |
 | `glyphs` | `"auto"` | `auto`, `nerd`, `unicode` or `ascii` | §4.6 |
+| `background` | `"auto"` | `auto`, `light` or `dark`; `auto` uses Omarchy's marker or asks the terminal | §4.6 |
 | `footer` | `true` | Footer key hints | §4.5 |
-| `page_preview` | `false` | First page line under the focused bullet | §5.7 |
 | `split_view_min_width` | `0` (off) | Open pages in split view at or above this width | §5.7 |
 | `zoom_transition` | `false` | Brief zoom animation | §4.6 |
 | `theme` | `"auto"` | `auto` (Omarchy palette, else ANSI) or the name of a `[themes.<name>]` table of truecolor values | §4.4 |
