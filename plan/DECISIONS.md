@@ -18,7 +18,7 @@ Context: §7.2 "12 chars, lowercase base32"; the spec's example `k3j9x2m4q7tb` c
 Decision: Greenspan base-62 fractional indexing (CONTRACTS §3); ties are broken by ID.
 
 ### D-005 · `format_id`
-Decision: `meta.format_id = "tree-outline"`; the JSON export `format` is `"tree-outline-export"`. Neutral per §1.
+Decision: `meta.format_id = "tree-outline"` (neutral per §1, since it lives in the database). The JSON export `format` is `"hyphal-export"`: it marks an export, like `exported_by`, so it may carry the app name. Renaming the app later keeps accepting `"hyphal-export"` on import.
 
 ### D-006 · Version bumps
 Context: §7.3 "every write bumps the node's version". Decision: every op that writes the `nodes` row bumps `nodes.version`. `edit_page` bumps `pages.version` and also `nodes.version`, so one `--if-version` on a node covers its page. `set_star` bumps nothing. `hyphal page set --if-version` compares `pages.version`.

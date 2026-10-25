@@ -4,7 +4,7 @@ Formats and names that several packages, tests or external users depend on. Chan
 
 ## 1. App name placement (§1)
 
-`hyphal` / `Hyphal` may appear only in: the binary name, data/config/runtime directory names, the `.desktop` file and window class (`hyphal`, capture window class `hyphal-capture`), the env vars `HYPHAL_DB` and `HYPHAL_DEBUG_LOG`, the export header (JSON `exported_by`, OPML `<head>`, Markdown first-line comment), CLI help text and docs. **Never** in table or column names, `meta` keys or values (except `exported_by` in exports), op kinds, JSON field names, or the sync format.
+`hyphal` / `Hyphal` may appear only in: the binary name, data/config/runtime directory names, the `.desktop` file and window class (`hyphal`, capture window class `hyphal-capture`), the env vars `HYPHAL_DB` and `HYPHAL_DEBUG_LOG`, the export header (JSON `format` and `exported_by`, OPML `<head>`, Markdown first-line comment), CLI help text and docs. **Never** in table or column names, `meta` keys or values (except `exported_by` in exports), op kinds, JSON field names, or the sync format.
 
 ## 2. IDs (§7.2)
 
@@ -89,7 +89,7 @@ Row rules enforced by `store.Commit`:
 
 ```json
 {
-  "format": "tree-outline-export",
+  "format": "hyphal-export",
   "format_version": 1,
   "schema_version": 1,
   "exported_by": "hyphal 0.3.0",
