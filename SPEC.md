@@ -66,7 +66,7 @@ Our claimed difference: Workflowy-grade editing, in a terminal, with local data 
 | Import from Workflowy (OPML) | Must | 1 | §7.5 |
 | Undo, Trash | Must | 1 | §5.6, §8.3 |
 | `#tags`, click to filter | Must | 2 | §5.9 |
-| Links to other bullets | Must | 2 | §10.1 |
+| Links to other bullets (survive moves and renames) | Must | 2 | §10.1 |
 | Search operators (`is:complete`, `has:page`, `changed:7d`) | Must | 2 | §6.2 |
 | Starred locations | Must | 2 | §6.6 |
 | Templates | Later | 3 | §10.1 |
@@ -238,7 +238,7 @@ The full keymap is in §6.4. The conventions it follows:
 **Native app integration**
 
 - On Linux, ships a `.desktop` entry and its own window class, so it launches from the app launcher like Omarchy's other terminal apps and can be targeted by Hyprland window rules. On macOS it is launched from a terminal; there is no app bundle in V1.
-- **Capture window:** `hyphal capture --window` starts a new terminal window running `hyphal capture` with its own class, which a window rule makes small and floating. The terminal command is a config template; the default uses `xdg-terminal-exec` with the class option of Omarchy's default terminal. Inside, type one line and press Enter: it lands in the Inbox, and the window closes. Plain `hyphal capture` does the same in the current terminal. The docs suggest a Super binding, checked against Omarchy's defaults.
+- **Capture window** (Phase 2): `hyphal capture --window` starts a new terminal window running `hyphal capture` with its own class, which a window rule makes small and floating. The terminal command is a config template; the default uses `xdg-terminal-exec` with the class option of Omarchy's default terminal. Inside, type one line and press Enter: it lands in the Inbox, and the window closes. Plain `hyphal capture` does the same in the current terminal. The docs suggest a Super binding, checked against Omarchy's defaults.
 
 ### 4.8 Phase 1 screens
 
@@ -451,11 +451,11 @@ Formatting uses Markdown-style markers, typed directly or wrapped around selecte
 
 ### 6.4 Keymap and terminal support
 
-This section is the only place key bindings are defined. Other sections name commands and may mention their keys, but this table wins. In code the keymap is data, one table per context, and a test fails if a key is bound twice in one context, a command has no binding that works without the kitty keyboard protocol, a bullet command has no single key in block selection, or a default binding outside word editing uses Alt.
+This section is the only place key bindings are defined. Other sections name commands and may mention their keys, but this table wins. In code the keymap is data, one table per context, and a test fails if a key is bound twice in one context, a command has no binding that works without the kitty keyboard protocol, a command in the block-selection table below has no single key there, or a default binding outside word editing uses Alt.
 
 **Contexts:** global, text editing, block selection, filter input, page view, page edit (Phase 2), overlays (palettes, pickers, help, backlinks) and the Trash view. The Esc chain moves between them (§4.7).
 
-**Two layers.** Block selection is the complete layer: every bullet command has a single key there, and single keys arrive the same in every terminal, on Linux and macOS. Chords are shortcuts for the most frequent commands, limited to keys that also arrive everywhere: Ctrl+letter, Tab, Shift+arrows and Ctrl+Shift+Up/Down. No command is bound to Alt, Option, Cmd or a bare Ctrl+arrow; Alt appears only in word-editing keys, as terminals send them. One key, Ctrl+Enter, needs the kitty keyboard protocol, and it is only an alternative.
+**Two layers.** Block selection is the complete layer for everyday bullet commands: each has a single key there, and single keys arrive the same in every terminal, on Linux and macOS. Chords are shortcuts for the most frequent commands, limited to keys that also arrive everywhere: Ctrl+letter, Tab, Shift+arrows and Ctrl+Shift+Up/Down. No command is bound to Alt, Option, Cmd or a bare Ctrl+arrow; Alt appears only in word-editing keys, as terminals send them. One key, Ctrl+Enter, needs the kitty keyboard protocol, and it is only an alternative.
 
 **Global** (every context, unless that context's table rebinds the key)
 
@@ -509,6 +509,7 @@ This section is the only place key bindings are defined. Other sections name com
 | `t` | Toggle task |
 | `#` | Toggle heading style |
 | Delete, `d` | Delete to the Trash, with an undo message |
+| Backspace | Nothing; a hint says Delete or `d` deletes |
 | Ctrl+C | Copy as Markdown (§5.5) |
 | Ctrl+X | Cut: copy, then delete to the Trash |
 | `p` | Open page |
@@ -549,7 +550,7 @@ This section is the only place key bindings are defined. Other sections name com
 **Terminal rules**
 
 - **Kitty keyboard protocol.** The app enables it through Bubble Tea when available. Only Ctrl+Enter needs it (without it, it arrives as Enter), and Esc `x` does the same everywhere.
-- **Alt is for word editing only.** Legacy terminals and tmux send Alt+key as Esc then the key, and Bubble Tea reads a quick Esc+key as Alt+key; macOS terminals send the same for Option+key when Option is set as Meta. Alt+`b`, Alt+`f` and Alt+Backspace move or delete by word; every other Alt key does nothing. A slow Esc then a key enters block selection and runs that key there. `b`, `f` and Backspace are unbound in block selection, so neither reading of those three ever does harm.
+- **Alt is for word editing only.** Legacy terminals and tmux send Alt+key as Esc then the key, and Bubble Tea reads a quick Esc+key as Alt+key; macOS terminals send the same for Option+key when Option is set as Meta. Alt+`b`, Alt+`f` and Alt+Backspace move or delete by word; every other Alt key does nothing. A slow Esc then a key enters block selection and runs that key there. `b`, `f` and Backspace do nothing in block selection beyond a hint, so neither reading of those three ever does harm.
 - **Bare Esc** is recognised after Bubble Tea's escape timeout; the kitty protocol removes that wait.
 - **tmux.** The docs recommend `set -s escape-time 10` and `set -s extended-keys on` (with the `extkeys` terminal feature) and ship the snippet.
 - **Readline keys.** The editing keys that macOS terminals send for Cmd and Option combinations are supported on both platforms: Ctrl+A, Ctrl+E, Ctrl+U, Ctrl+W and Alt+`b`/`f`. Other readline keys are not emulated; Ctrl+K and Ctrl+P are app commands.
@@ -570,7 +571,7 @@ This section is the only place key bindings are defined. Other sections name com
 
 - **Command palette (Ctrl+P, Phase 1):** every command searchable by name, showing its key binding, recently used first. It is the discoverability layer for everything in this spec, so terminal key limits never hide a feature.
 - **Stars (Phase 2):** "Toggle star" stars the bullet you're on: the focused bullet, or the selected ones in block selection. To star the zoom target, toggle it on the zoom heading. Stars appear first in the jump palette and in a Stars view; `is:starred` finds them.
-- **Small commands (Phase 1),** with keys in §6.4:
+- **Small commands (Phase 1),** with keys in §6.4 where they have one. Rarely used commands are palette-only by design: Delete page, Sort children, Copy link to node, and Bold, Italic and Color… applied to whole bullets.
   - Expand all (`0`) and expand to level 1–9 under the current node; level 1 collapses everything below the children
   - Duplicate subtree
   - Show / hide completed
@@ -672,7 +673,7 @@ CREATE INDEX nodes_in_trash   ON nodes(deleted_at) WHERE deleted_at IS NOT NULL;
 - Pending typing is flushed and sealed on quit, on SIGHUP (terminal closed) and on SIGTERM, before the app exits.
 - WAL mode with `synchronous=FULL`. The extra cost is negligible at this write rate.
 - The TUI keeps an in-memory tree for rendering; all writes go through `core` to `store`.
-- The CLI opens its own connection with a busy timeout. The TUI polls `PRAGMA data_version` about every 500 ms; when another connection has written, it reloads the whole tree off the UI loop and keeps zoom, cursor and selection by node ID. Incremental reloading is a later optimization if ever needed.
+- The CLI opens its own connection with a busy timeout. The TUI polls `PRAGMA data_version` about every 500 ms; when another connection has written, it reloads the whole tree off the UI loop and keeps zoom, cursor and selection by node ID. Unsealed typing survives the reload and still commits afterwards, under the concurrency rule below. Incremental reloading is a later optimization if ever needed.
 - **Concurrent edits to one node.** Every write bumps the node's `version`. If another connection changes a node while the TUI holds unsealed typing on it, the user's typing is never dropped: it commits as a new change set after the other change, which stays in history and can be reverted, and a message says so. A CLI or agent that must not overwrite newer work passes `--if-version <n>` and gets a conflict error instead. The same rule applies to a page open in `$EDITOR` while `hyphal page set` runs.
 
 ### 7.4 Migrations
@@ -693,7 +694,7 @@ CREATE INDEX nodes_in_trash   ON nodes(deleted_at) WHERE deleted_at IS NOT NULL;
 - JSON export never contains the config file or snapshots.
 - Every export records the app and the export time without breaking its format: a top-level `exported_by` field in JSON, `<head>` elements in OPML (after the `<?xml` declaration), and an HTML comment on the first line of Markdown, which importers skip.
 - Exports are written atomically (temp file, then rename).
-- **Scheduled export** is an optional setting: Markdown or JSON, daily or on quit, into a folder you choose (for example a Git repo), keeping the last N exports. There is no daemon: a daily export runs on quit, or at launch if it is overdue. `hyphal export --scheduled` runs it from a systemd timer, launchd or cron.
+- **Scheduled export** (Phase 2) is an optional setting: Markdown or JSON, daily or on quit, into a folder you choose (for example a Git repo), keeping the last N exports. There is no daemon: a daily export is due when the last one is more than 24 hours old, checked at launch, at quit and on the TUI's timer. `hyphal export --scheduled` runs it from a systemd timer, launchd or cron.
 - CI checks that database → JSON → database is identical: every exported field is equal, including IDs, positions, timestamps, pages, stars and view state, and history when exported with `--history`.
 
 **Markdown dialect.** Export, import, multi-line paste (§5.5) and the editor round trip (§6.3) share one dialect, close to GitHub-flavored Markdown:
@@ -800,18 +801,18 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 - Restore brings back exactly one deletion: the nodes whose `deleted_by` matches. A child deleted separately earlier stays in the Trash.
 - A restored subtree returns to its original position among its siblings when that position still exists, otherwise to the end of its parent. If the parent is gone too, it goes under the nearest surviving ancestor, else the root, and the message says where.
 - Items older than 30 days are purged for real (configurable). "Empty Trash" purges everything immediately, after a one-line confirmation.
-- Purging deletes the node rows with their pages, stars and view state. History ops that mention them stay until `hyphal history purge` removes them; reverting one reports the node as gone.
+- Purging deletes the node rows with their pages, stars and view state. Purging a deletion also purges, in the same transaction, any descendants still in the Trash from earlier deletions, so no trashed row is ever left pointing at a purged parent. History ops that mention them stay until `hyphal history purge` removes them; reverting one reports the node as gone.
 - After a delete the cursor moves to the next sibling, else the previous one, else the parent. The message names the bullet and counts its descendants.
 
 ### 8.4 Retention and erasure
 
 - History is kept in full; nothing is compacted. `hyphal history purge --before <date>` removes older history when you want the space back.
-- **Forget node** (Phase 4) erases a node from `nodes` and from history, and records a change set saying a node was forgotten (without its content). Snapshots still contain it until they rotate out, and the command says so.
+- **Forget** (Phase 4) works on a Trash entry: it erases that deletion's whole subtree from `nodes`, `pages`, `stars`, `view_state` and history (purging earlier trashed descendants as in §8.3), and records a change set whose description says what was forgotten, without its content and with no ops. Snapshots still contain it until they rotate out, and the command says so.
 - Expected growth is a few hundred KB per day of heavy use, about 100 MB a year. This is an estimate to verify in Phase 0.
 
 ### 8.5 Snapshots
 
-- Taken with SQLite's online backup API: once a day when the outline has changed (at launch or quit, whichever comes first), and before every migration or restore.
+- Taken with SQLite's online backup API: once a day when the outline has changed, and before every migration or restore. "Due" means the newest snapshot is more than 24 hours old; the TUI checks at launch, at quit and on its timer, and every CLI write checks too, so a TUI left open for days and a CLI-only outline both get snapshots.
 - The last 14 are kept.
 - Each snapshot is checked with `PRAGMA quick_check` after it is written; one that fails is deleted and reported. "Latest good snapshot" means the newest that passed.
 - `hyphal snapshot list` lists them with their sizes; `hyphal snapshot restore <name>` restores one after snapshotting the current state first, so a restore is itself reversible.
@@ -821,7 +822,7 @@ CREATE INDEX ops_by_change_set ON ops(change_set_id);
 
 - One TUI per database, enforced with an exclusive `flock` on a lock file next to the database (`outline.db.lock`). It is not an SQLite lock, so CLI writers are never blocked by it, and the kernel releases it if the TUI dies.
 - A second TUI opens read-only with a banner. It still follows changes through `PRAGMA data_version`; typing in it changes nothing and shows a hint.
-- **Takeover.** The read-only TUI retries the lock on its `data_version` tick. Once the lock is free, its banner changes to "Editing is available · Enter to edit"; pressing Enter takes the lock and switches to normal editing. Nothing changes without that keypress.
+- **Takeover** (Phase 2). The read-only TUI retries the lock on its `data_version` tick. Once the lock is free, its banner changes to "Editing is available · Enter to edit"; pressing Enter takes the lock and switches to normal editing. Nothing changes without that keypress.
 - The CLI and `hyphal capture` don't take the lock. They are ordinary writers with a 5-second busy timeout; past it they exit with a `busy` error code (§10.2). SQLite serializes the writes.
 
 ## 9. Implementation
@@ -949,7 +950,7 @@ hyphal set <node> [--task | --no-task] [--heading | --no-heading]
 hyphal move <node> --under <node> [--after <node> | --before <node> | --index N]
 hyphal complete <node>      # and: reopen, star, unstar
 hyphal delete <node>        # to Trash
-hyphal forget <node>        # Phase 4: erase for good (§8.4); asks for --yes
+hyphal forget <id>          # Phase 4: erase a Trash entry for good (§8.4); asks for --yes
 hyphal trash list [--all]|restore <id>|empty   # <id>: the deleted subtree's top node
 hyphal page get <node>      # Markdown to stdout
 hyphal page set <node> --file page.md [--if-version N]   # or from stdin
@@ -970,7 +971,7 @@ hyphal paths
 - **Paths** are breadcrumb paths from Home, with `/` between segments: `Projects/ControllerCraft`. A literal `/` in a bullet's text is written `\/` (`Projects/2026\/10 review`). Segments match the bullet's text with markup stripped, exactly first, then case-insensitively. If a segment matches several siblings, the command fails with an `ambiguous` error listing the candidates and their IDs. Path lookups return the ID for later calls.
 - **`ops.json`** (Phase 4) is a JSON array of operations, each `{"op": "<command>", ...arguments}`, using the same names and arguments as the commands above (`add`, `edit`, `set`, `move`, `complete`, `delete`, `page_set`, …). An operation can refer to a node added earlier in the batch by a temporary `"ref"`. `hyphal apply --schema` prints the exact schema.
 - **Output:** every command supports `--json`, with a stable, versioned envelope: `{"ok": true, "data": …}` or `{"ok": false, "error": {"code": "…", "message": "…", "candidates": [...]}}`. Human-readable output is the default. Export without `--out` writes a single-file format to stdout.
-- **Exit statuses:** 0 success, 1 other error, 2 usage error, 3 `not_found` or `ambiguous`, 4 `conflict` (`--if-version` mismatch), 5 `busy` (locked past the 5-second busy timeout, §8.6), 6 `read_only` (newer schema or failed integrity check).
+- **Exit statuses:** 0 success, 1 other error, 2 usage error, 3 `not_found` or `ambiguous`, 4 `conflict` (`--if-version` mismatch), 5 `busy` (locked past the 5-second busy timeout, §8.6), 6 `read_only` (the database has a newer schema than this version knows).
 - Every write is one change set tagged with its source: `cli` by default, `--source agent:<name>` for agents, so their changes can be reviewed and reverted as a unit. The source is self-declared: it is for attribution, not a security boundary.
 - `hyphal apply` (Phase 4) lets an agent submit a batch of operations atomically; either all apply or none do.
 - Writes are safe while the TUI is open; the TUI picks them up within a second (§7.3).
@@ -986,10 +987,10 @@ Six phases, each with an exit gate:
 | Phase | Scope | Exit gate |
 |---|---|---|
 | **0 · Storage and editing spike** | Schema, history, JSON round trip; wrap layout, keymap matrix | Export and import are identical; a crash loses at most the unsealed typing |
-| **1 · Minimum lovable Workflowy clone** | Editing rules, block selection, pages, formatting; theme matching, palettes, CLI, Workflowy import | A week of daily use on your own outline; side-by-side calm review passes |
-| **2 · Full Workflowy parity** | Tags, node links, search operators, stars; jump palette, history, mouse, page edit mode | Every *Must* row of the parity checklist works |
-| **3 · Obsidian-inspired features** | Backlinks, saved searches, templates | Links survive moves and renames and export cleanly |
-| **4 · Agent integration** | Batch `apply`, `forget`, agent usage guide, richer queries | Every agent change is reviewable and revertible |
+| **1 · Minimum lovable Workflowy clone** | Editing rules, block selection, pages, formatting; theme matching, palettes, CLI, quick capture, Workflowy import | A week of daily use on your own outline; side-by-side calm review passes |
+| **2 · Full Workflowy parity** | Tags, node links, search operators, stars; jump palette, history, mouse, page edit mode; scheduled export, capture window, read-only takeover | Every *Must* row of the parity checklist works |
+| **3 · Obsidian-inspired features** | Backlinks, saved searches, templates | Backlinks list every linking bullet and page; a saved search reopens with the same results; a template instantiates with new IDs |
+| **4 · Agent integration** | Batch `apply`, `forget`, agent usage guide, richer queries | An agent completes a scripted multi-step task with `apply` and the usage guide, and one `hyphal revert` undoes it as a unit |
 | **5 · Multi-device sync** | Device IDs, HLC merge, per-device logs, compaction; any-folder sync (iCloud Drive, Syncthing) | Two machines edit offline and converge with nothing lost |
 
 Each phase starts only after the previous gate passes.
@@ -1043,12 +1044,12 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 | 22 | Builders | Built entirely by AI agents from a phased plan; every behavior has an automated test | §9.6 |
 | 23 | App name | Only in user-facing places; never in schema, ops, sync log or JSON fields | §1 |
 | 24 | Root and Inbox | A fixed Home root; a top-level Inbox found by ID | §4.1, §6.3 |
-| 25 | Keymap | One authoritative table per context; every command has a block-selection key; no Alt commands; same keys on Linux and macOS; Esc never zooms out; typing never leaves block selection | §6.4 |
+| 25 | Keymap | One authoritative table per context; every everyday bullet command has a block-selection key, rare ones are palette-only; no Alt commands; same keys on Linux and macOS; Esc never zooms out; typing never leaves block selection | §6.4 |
 | 26 | Overlays | Backlinks and palettes are floating overlays; no side panes | §4.7 |
 | 27 | Undo scope | Per-session stack of TUI-started changes, including `$EDITOR` round trips; CLI and agent changes are reverted | §5.6 |
 | 28 | Identity | Split keeps the ID on the first half; merges keep the earlier bullet and retarget stars and links | §5.2–5.3a |
 | 29 | Concurrency | Per-node versions; TUI typing is never dropped; `--if-version` for agents | §7.3 |
-| 30 | Trash restore | Per deletion, to the original position, else the nearest surviving ancestor (Trash and sync alike) | §8.3 |
+| 30 | Trash restore | Per deletion, to the original position, else the nearest surviving ancestor | §8.3 |
 | 31 | History policy | Append-only, ops written once when sealed; no compaction; manual purge | §8.2, §8.4 |
 | 32 | Sync moves | Moves carry parent and position together; a proven tree-move algorithm in Phase 5 | §7.6 |
 | 33 | Markdown | One GFM-style dialect for export, import, paste and the editor round trip | §7.5 |
@@ -1058,7 +1059,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 | 37 | Cut and paste | Pasting the app's own last cut moves the bullets intact (IDs, pages, history) | §5.5 |
 | 38 | Page preview | None in the outline; zoom into the page to read it | §5.7 |
 | 39 | Trash contents | Merge leftovers and empty leaves are hidden from the Trash view | §8.3 |
-| 40 | Block-selection keys | Every bullet command has one single key, no aliases: `[`/`]` move, `D` duplicate, `h` show/hide completed, `0` expand all, `~` zoom to root | §6.4 |
+| 40 | Block-selection keys | Every everyday bullet command has one single key, no aliases: `[`/`]` move, `D` duplicate, `h` show/hide completed, `0` expand all, `~` zoom to root | §6.4 |
 | 41 | Markdown export layout | One `outline.md` plus `pages/` by default; `--split` for one file per top-level node | §7.5 |
 | 42 | Feedback | No toasts: one footer row shows a message (until the next key), the filter query, or key hints | §4.5 |
 | 43 | Leading markers | `[ ] `, `[x] ` and `## ` at the start of a bullet always convert, so the dialect needs no escapes | §5.4, §7.5 |
@@ -1092,7 +1093,7 @@ Future and exploratory, with no phase: direct Wi-Fi sync, collaboration, graph v
 4. **Reference mockups:** the five screens listed in §4.6, reviewed side by side with Workflowy and with lazygit and btop under three Omarchy themes, one of them light.
 5. **Keymap matrix:** record which bindings arrive in each terminal, bare and in tmux, before finalizing §6.4, including how Option+Left/Right/Backspace and Cmd+Left/Right arrive on macOS and that macOS leaves Ctrl+Shift+Up/Down alone.
 6. **Workflowy import:** run a real Workflowy OPML export through the importer and list anything lost, including how mirrors appear and whether they can be detected.
-7. **Stack checks:** confirm Bubble Tea v2's keyboard-protocol support in the terminal matrix and that `teatest` (or a v2 equivalent) works with v2, and choose the pure-Go SQLite driver after verifying the online backup API; measure fuzzy matching and the in-memory filter over 100,000 nodes.
+7. **Stack checks:** confirm Bubble Tea v2's keyboard-protocol support in the terminal matrix and that `teatest` (or a v2 equivalent) works with v2, and choose the pure-Go SQLite driver after verifying the online backup API; measure fuzzy matching and the in-memory filter over 100,000 nodes, and the time a CLI call takes to load the tree for `hyphal search` and path lookups.
 8. **Implementation plan:** turn this spec into the phased, agent-ready plan, with acceptance criteria per feature (§9.6).
 
 ## 13. Configuration reference
