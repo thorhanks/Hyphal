@@ -1,0 +1,18 @@
+# Linters from plan/ARCHITECTURE.md §7.
+version: "2"
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - gocritic
+    - misspell
+    - revive
+    - unparam
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+
+formatters:
+  enable:
+    - gofmt

@@ -1,0 +1,5 @@
+/dist/
+testdata/private/
+*.out
+*.test
+coverage.*

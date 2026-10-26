@@ -1,0 +1,33 @@
+# plan/TESTING.md §2: long fuzzing and benchmark regressions (§9.4).
+name: nightly
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: make fuzz-long
+
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      # TODO(P0-20): compare with benchstat and fail on a > 20 % regression (p < 0.05).
+      - name: Compare with baseline
+        run: |
+          if [ ! -f testdata/bench/baseline.txt ]; then
+            echo "No baseline yet (P0-20 creates it); skipping."
+            exit 0
+          fi
+          make bench
