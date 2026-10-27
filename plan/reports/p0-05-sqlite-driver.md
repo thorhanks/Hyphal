@@ -15,7 +15,7 @@ Candidates: `modernc.org/sqlite` v1.61.0 (C transpiled to Go, SQLite 3.54.1) and
 | 1 | Online backup of a live WAL DB while another connection writes | pass | pass |
 | 1 | Restore by backing up a snapshot *into* the live DB; an open connection sees it | pass | pass |
 | 2 | `PRAGMA data_version` changes after a write from another process | pass | pass |
-| 3 | WAL + `synchronous=FULL` (+ `fullfsync=ON` on macOS) on every pooled connection | pass (Linux; macOS see below) | pass (Linux; macOS see below) |
+| 3 | WAL + `synchronous=FULL` (+ `fullfsync=ON` on macOS) on every pooled connection | pass (Linux, macOS) | pass (Linux, macOS) |
 | 3 | `busy_timeout` waits for another process's write lock; gives `SQLITE_BUSY` past it | pass (busy after 202 ms with a 200 ms timeout) | pass (202 ms) |
 | 4 | 10-op commit, 10k nodes, btrfs, median / p99 | 1.63 ms / 6.8 ms | 1.64 ms / 5.2 ms |
 | 4 | Same on tmpfs (no real fsync) | 0.38 ms / 0.83 ms | 0.36 ms / 0.85 ms |
@@ -29,7 +29,18 @@ Candidates: `modernc.org/sqlite` v1.61.0 (C transpiled to Go, SQLite 3.54.1) and
 
 Linux numbers: Intel Core 5 320 (6 threads), Linux 7.2, btrfs on NVMe, Go 1.27.3, medians of 3 runs (300 commits each for latency). Benchmarks run 3× with `-benchmem`.
 
-macOS: the `driverspike` workflow (`.github/workflows/driverspike.yml`) runs the same suite and `measure.sh` on `macos-latest` and `ubuntu-latest` for this PR. Its pass/fail covers `fullfsync=ON` and the cross-process checks on macOS; shared-runner timings are indicative only (§9.4). The regression tests in `internal/store` also run on macOS through `make check`.
+macOS: the `driverspike` workflow (`.github/workflows/driverspike.yml`) runs the same suite and `measure.sh` on `macos-latest` and `ubuntu-latest`. On macOS both drivers pass every check, including `fullfsync=1` on every pooled connection and the cross-process `data_version` and `busy_timeout` tests ([run 40428909653](https://github.com/thorhanks/hyphal/actions/runs/40428909653)). These timings come from a shared 3-core VM, so they are indicative only (§9.4):
+
+| macOS `macos-latest` (fullfsync on) | modernc | ncruces |
+| --- | --- | --- |
+| 10-op commit, median / p99 | 1.98 ms / 19.2 ms | 1.38 ms / 5.9 ms |
+| `BenchmarkCommitTenOps10k` (3 runs) | 2.5–2.8 ms | 1.6–3.7 ms |
+| `LoadAll` 10k | 24–27 ms | 14–17 ms |
+| `LoadAll` 100k | 231–306 ms | 151–185 ms |
+
+modernc stays under 2× of ncruces on macOS too, so the choice stands. The commit p99 on a CI VM says little about real `F_FULLFSYNC` cost on a Mac's SSD; the human benchmark on fixed hardware (§9.4) is where to check it.
+
+The regression tests in `internal/store` also run on macOS through `make check`.
 
 ## Observations
 
