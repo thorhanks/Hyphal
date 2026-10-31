@@ -217,7 +217,7 @@ test.describe("AC9 tabs", () => {
 
 test.describe("Report: $EDITOR and clipboard", () => {
   test("the editor round trip applies on exit as one undoable step", async ({ page }) => {
-    app = await start({ seed: "a||Alpha\n", editor: `sed -i s/Alpha/Edited/ "$1"` });
+    app = await start({ seed: "a||Alpha\n", editor: `printf 'Edited\n' > "$1"` });
     await open(page, app);
     await place(page, "a", 0);
     await page.keyboard.press("Escape");
